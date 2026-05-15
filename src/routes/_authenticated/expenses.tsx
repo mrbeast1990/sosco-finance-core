@@ -11,7 +11,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Paperclip, X, FileSpreadsheet } from "lucide-react";
+import { Plus, Search, Paperclip, X, FileSpreadsheet, Pencil, Undo2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -25,7 +26,13 @@ function ExpensesPage() {
   const qc = useQueryClient();
   const { can, user } = useAuth();
   const canCreate = can("expenses.create");
+  const canEdit = can("expenses.edit");
+  const canDelete = can("expenses.delete");
   const [search, setSearch] = useState("");
+  const [editingExp, setEditingExp] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({ description: "", expense_date: "" });
+  const [reversing, setReversing] = useState<any | null>(null);
+  const [reverseReason, setReverseReason] = useState("");
   const [filterProject, setFilterProject] = useState("all");
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -138,6 +145,39 @@ function ExpensesPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function openEditExp(e: any) {
+    setEditingExp(e);
+    setEditForm({ description: e.description ?? "", expense_date: e.expense_date });
+  }
+
+  async function onSaveEditExp(ev: React.FormEvent) {
+    ev.preventDefault();
+    if (!editingExp) return;
+    const { error } = await supabase.from("expenses").update({
+      description: editForm.description || null,
+      expense_date: editForm.expense_date,
+      updated_at: new Date().toISOString(),
+      updated_by: user!.id,
+    }).eq("id", editingExp.id);
+    if (error) return toast.error("فشل التعديل", { description: error.message });
+    toast.success("تم تحديث المصروف");
+    setEditingExp(null);
+    qc.invalidateQueries({ queryKey: ["expenses"] });
+  }
+
+  async function onConfirmReverse() {
+    if (!reversing) return;
+    const { error } = await supabase.rpc("reverse_expense_atomic", {
+      _expense_id: reversing.id,
+      _reason: reverseReason || "حذف بدون سبب",
+    });
+    if (error) return toast.error("فشل عكس المصروف", { description: error.message });
+    toast.success("تم عكس المصروف وإنشاء قيد عكسي");
+    setReversing(null);
+    setReverseReason("");
+    qc.invalidateQueries();
   }
 
   async function downloadAttachment(path: string) {
@@ -300,6 +340,16 @@ function ExpensesPage() {
                             <FileSpreadsheet className="size-3.5 text-success" />
                           </Button>
                         )}
+                        {canEdit && (
+                          <Button size="sm" variant="ghost" onClick={() => openEditExp(e)} title="تعديل">
+                            <Pencil className="size-3.5" />
+                          </Button>
+                        )}
+                        {canDelete && (
+                          <Button size="sm" variant="ghost" onClick={() => setReversing(e)} title="عكس/حذف">
+                            <Undo2 className="size-3.5 text-destructive" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -309,6 +359,41 @@ function ExpensesPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!editingExp} onOpenChange={(o) => !o && setEditingExp(null)}>
+        <DialogContent dir="rtl">
+          <DialogHeader><DialogTitle>تعديل المصروف</DialogTitle></DialogHeader>
+          <form onSubmit={onSaveEditExp} className="space-y-4">
+            <div className="rounded-md bg-muted/40 border p-2 text-xs text-muted-foreground">
+              للحفاظ على سلامة القيود المحاسبية، يمكن تعديل التاريخ والوصف فقط. لتغيير المبلغ أو التخصيصات، اعكس المصروف وأنشئ مصروفاً جديداً.
+            </div>
+            <div className="space-y-2"><Label>التاريخ</Label>
+              <Input required type="date" value={editForm.expense_date} onChange={(ev) => setEditForm({ ...editForm, expense_date: ev.target.value })} /></div>
+            <div className="space-y-2"><Label>الوصف</Label>
+              <Textarea value={editForm.description} onChange={(ev) => setEditForm({ ...editForm, description: ev.target.value })} /></div>
+            <DialogFooter><Button type="submit">حفظ</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!reversing} onOpenChange={(o) => !o && (setReversing(null), setReverseReason(""))}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>عكس/حذف مصروف</AlertDialogTitle>
+            <AlertDialogDescription>
+              سيتم حذف المصروف ({reversing && formatCurrency(reversing.amount)}) وإنشاء قيد عكسي يستعيد المبلغ إلى حساب الصرف. لا يمكن التراجع.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label>سبب العكس</Label>
+            <Textarea value={reverseReason} onChange={(ev) => setReverseReason(ev.target.value)} placeholder="مثال: خطأ في التسجيل" />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirmReverse} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">تأكيد العكس</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

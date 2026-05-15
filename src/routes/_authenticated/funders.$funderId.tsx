@@ -14,7 +14,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Plus, FolderKanban, Wallet, Receipt, Hash } from "lucide-react";
+import { ArrowRight, Plus, FolderKanban, Wallet, Receipt, Hash, Pencil, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -27,7 +28,11 @@ function FunderProfile() {
   const qc = useQueryClient();
   const { can } = useAuth();
   const canCreateCheck = can("funding.create");
+  const canEditCheck = can("funding.edit");
+  const canDeleteCheck = can("funding.delete");
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState<any | null>(null);
   const [form, setForm] = useState({ check_number: "", amount: "", cash_account_id: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
 
   const { data: cashAccounts } = useQuery({ queryKey: ["cash-active"],
@@ -113,6 +118,54 @@ function FunderProfile() {
     qc.invalidateQueries({ queryKey: ["funder-checks", funderId] });
   }
 
+  function openEdit(c: any) {
+    setEditing(c);
+    setForm({
+      check_number: c.check_number,
+      amount: String(c.amount),
+      cash_account_id: c.cash_account_id,
+      received_date: c.received_date,
+      notes: c.notes ?? "",
+    });
+  }
+
+  async function onSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editing) return;
+    const used = usedByCheck.get(editing.id) ?? 0;
+    const newAmount = Number(form.amount);
+    if (used > 0 && newAmount < used) {
+      return toast.error("لا يمكن تخفيض المبلغ تحت المستهلك", { description: `المستهلك: ${used}` });
+    }
+    const patch: any = {
+      check_number: form.check_number,
+      amount: newAmount,
+      received_date: form.received_date,
+      notes: form.notes || null,
+    };
+    if (used === 0) patch.cash_account_id = form.cash_account_id;
+    const { error } = await supabase.from("funding_checks").update(patch).eq("id", editing.id);
+    if (error) return toast.error("فشل التعديل", { description: error.message });
+    toast.success("تم تحديث الصك");
+    setEditing(null);
+    qc.invalidateQueries({ queryKey: ["funder-checks", funderId] });
+  }
+
+  async function onConfirmDelete() {
+    if (!deleting) return;
+    const used = usedByCheck.get(deleting.id) ?? 0;
+    if (used > 0) {
+      toast.error("لا يمكن حذف صك مستهلك جزئياً", { description: `المستهلك: ${used}` });
+      setDeleting(null);
+      return;
+    }
+    const { error } = await supabase.from("funding_checks").update({ deleted_at: new Date().toISOString() }).eq("id", deleting.id);
+    if (error) return toast.error("فشل الحذف", { description: error.message });
+    toast.success("تم حذف الصك");
+    setDeleting(null);
+    qc.invalidateQueries({ queryKey: ["funder-checks", funderId] });
+  }
+
   if (isLoading) return <LoadingState />;
   if (!funder) return <EmptyState title="الممول غير موجود" />;
 
@@ -176,6 +229,7 @@ function FunderProfile() {
                   <TableHead>رقم الصك</TableHead><TableHead>حساب الإيداع</TableHead><TableHead>تاريخ الاستلام</TableHead>
                   <TableHead>المبلغ</TableHead><TableHead>المستخدم</TableHead>
                   <TableHead>المتبقي</TableHead><TableHead className="w-48">نسبة الاستهلاك</TableHead>
+                  {(canEditCheck || canDeleteCheck) && <TableHead className="w-24"></TableHead>}
                 </TableRow></TableHeader>
                 <TableBody>
                   {(checks ?? []).map((c: any) => {
@@ -191,6 +245,22 @@ function FunderProfile() {
                         <TableCell className="tabular-nums text-muted-foreground">{formatCurrency(used)}</TableCell>
                         <TableCell className={`tabular-nums font-semibold ${remaining <= 0 ? "text-destructive" : "text-primary"}`}>{formatCurrency(remaining)}</TableCell>
                         <TableCell><Progress value={pct} className="h-2" /><span className="text-xs text-muted-foreground">{pct.toFixed(1)}%</span></TableCell>
+                        {(canEditCheck || canDeleteCheck) && (
+                          <TableCell>
+                            <div className="flex gap-1">
+                              {canEditCheck && (
+                                <Button size="icon" variant="ghost" onClick={() => openEdit(c)} title="تعديل">
+                                  <Pencil className="size-3.5" />
+                                </Button>
+                              )}
+                              {canDeleteCheck && (
+                                <Button size="icon" variant="ghost" onClick={() => setDeleting(c)} disabled={used > 0} title={used > 0 ? "لا يمكن الحذف — مستهلك جزئياً" : "حذف"}>
+                                  <Trash2 className={`size-3.5 ${used > 0 ? "" : "text-destructive"}`} />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
@@ -245,6 +315,54 @@ function FunderProfile() {
           </CardContent></Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent dir="rtl">
+          <DialogHeader><DialogTitle>تعديل صك</DialogTitle></DialogHeader>
+          {editing && (() => {
+            const used = usedByCheck.get(editing.id) ?? 0;
+            return (
+              <form onSubmit={onSaveEdit} className="space-y-4">
+                {used > 0 && (
+                  <div className="rounded-md bg-muted/40 border p-2 text-xs text-muted-foreground">
+                    هذا الصك مستهلك جزئياً ({formatCurrency(used)}). حساب الإيداع مقفل ولا يمكن تخفيض المبلغ تحت المستهلك.
+                  </div>
+                )}
+                <div className="space-y-2"><Label>رقم الصك</Label>
+                  <Input required value={form.check_number} onChange={(e) => setForm({ ...form, check_number: e.target.value })} dir="ltr" /></div>
+                <div className="space-y-2"><Label>المبلغ (د.ل)</Label>
+                  <Input required type="number" step="0.01" min={used || 0.01} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" /></div>
+                <div className="space-y-2"><Label>حساب الإيداع</Label>
+                  <Select value={form.cash_account_id} onValueChange={(v) => setForm({ ...form, cash_account_id: v })} disabled={used > 0}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{(cashAccounts ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2"><Label>تاريخ الاستلام</Label>
+                  <Input required type="date" value={form.received_date} onChange={(e) => setForm({ ...form, received_date: e.target.value })} /></div>
+                <div className="space-y-2"><Label>ملاحظات</Label>
+                  <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+                <DialogFooter><Button type="submit">حفظ التعديلات</Button></DialogFooter>
+              </form>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف الصك</AlertDialogTitle>
+            <AlertDialogDescription>
+              سيتم حذف الصك رقم <span dir="ltr" className="font-medium">{deleting?.check_number}</span> بمبلغ {deleting && formatCurrency(Number(deleting.amount))}. لا يمكن التراجع.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">حذف</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
