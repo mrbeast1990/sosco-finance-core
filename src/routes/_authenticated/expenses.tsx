@@ -31,7 +31,7 @@ function ExpensesPage() {
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [form, setForm] = useState({
-    project_id: "", category_id: "", payment_account_id: "",
+    project_id: "", category_id: "",
     amount: "", expense_date: new Date().toISOString().slice(0, 10), description: "",
   });
   const [allocations, setAllocations] = useState<Allocation[]>([{ funding_check_id: "", amount: "" }]);
@@ -40,10 +40,10 @@ function ExpensesPage() {
     queryFn: async () => (await supabase.from("projects").select("id,name,code").is("deleted_at", null)).data ?? [] });
   const { data: cats } = useQuery({ queryKey: ["cats-sel"],
     queryFn: async () => (await supabase.from("expense_categories").select("id,name").order("name")).data ?? [] });
-  const { data: cashAccounts } = useQuery({ queryKey: ["cash-sel"],
-    queryFn: async () => (await supabase.from("cash_accounts").select("id,name,type").eq("is_active", true).order("name")).data ?? [] });
   const { data: checks } = useQuery({ queryKey: ["checks-sel"],
-    queryFn: async () => (await supabase.from("funding_checks").select("id, check_number, amount, funders(name)").is("deleted_at", null)).data ?? [] });
+    queryFn: async () => (await supabase.from("funding_checks")
+      .select("id, check_number, amount, cash_account_id, funders(name), cash_accounts(name)")
+      .is("deleted_at", null)).data ?? [] });
   const { data: spentMap } = useQuery({ queryKey: ["spent-map"],
     queryFn: async () => {
       const { data } = await supabase.from("expense_funding_allocations")
