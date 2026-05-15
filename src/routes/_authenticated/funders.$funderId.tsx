@@ -27,7 +27,10 @@ function FunderProfile() {
   const { can } = useAuth();
   const canCreateCheck = can("funding.create");
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ check_number: "", amount: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
+  const [form, setForm] = useState({ check_number: "", amount: "", cash_account_id: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
+
+  const { data: cashAccounts } = useQuery({ queryKey: ["cash-active"],
+    queryFn: async () => (await supabase.from("cash_accounts").select("id,name,type").eq("is_active", true).order("name")).data ?? [] });
 
   const { data: funder, isLoading } = useQuery({
     queryKey: ["funder", funderId],
