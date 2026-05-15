@@ -16,7 +16,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
 import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticated/projects'
 import { Route as AuthenticatedJournalEntriesRouteImport } from './routes/_authenticated/journal-entries'
-import { Route as AuthenticatedFundingChecksRouteImport } from './routes/_authenticated/funding-checks'
 import { Route as AuthenticatedFundersRouteImport } from './routes/_authenticated/funders'
 import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
 import { Route as AuthenticatedExpenseCategoriesRouteImport } from './routes/_authenticated/expense-categories'
@@ -58,12 +57,6 @@ const AuthenticatedJournalEntriesRoute =
     path: '/journal-entries',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedFundingChecksRoute =
-  AuthenticatedFundingChecksRouteImport.update({
-    id: '/funding-checks',
-    path: '/funding-checks',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedFundersRoute = AuthenticatedFundersRouteImport.update({
   id: '/funders',
   path: '/funders',
@@ -100,7 +93,6 @@ export interface FileRoutesByFullPath {
   '/expense-categories': typeof AuthenticatedExpenseCategoriesRoute
   '/expenses': typeof AuthenticatedExpensesRoute
   '/funders': typeof AuthenticatedFundersRoute
-  '/funding-checks': typeof AuthenticatedFundingChecksRoute
   '/journal-entries': typeof AuthenticatedJournalEntriesRoute
   '/projects': typeof AuthenticatedProjectsRoute
   '/reports': typeof AuthenticatedReportsRoute
@@ -114,7 +106,6 @@ export interface FileRoutesByTo {
   '/expense-categories': typeof AuthenticatedExpenseCategoriesRoute
   '/expenses': typeof AuthenticatedExpensesRoute
   '/funders': typeof AuthenticatedFundersRoute
-  '/funding-checks': typeof AuthenticatedFundingChecksRoute
   '/journal-entries': typeof AuthenticatedJournalEntriesRoute
   '/projects': typeof AuthenticatedProjectsRoute
   '/reports': typeof AuthenticatedReportsRoute
@@ -130,7 +121,6 @@ export interface FileRoutesById {
   '/_authenticated/expense-categories': typeof AuthenticatedExpenseCategoriesRoute
   '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
   '/_authenticated/funders': typeof AuthenticatedFundersRoute
-  '/_authenticated/funding-checks': typeof AuthenticatedFundingChecksRoute
   '/_authenticated/journal-entries': typeof AuthenticatedJournalEntriesRoute
   '/_authenticated/projects': typeof AuthenticatedProjectsRoute
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
@@ -146,7 +136,6 @@ export interface FileRouteTypes {
     | '/expense-categories'
     | '/expenses'
     | '/funders'
-    | '/funding-checks'
     | '/journal-entries'
     | '/projects'
     | '/reports'
@@ -160,7 +149,6 @@ export interface FileRouteTypes {
     | '/expense-categories'
     | '/expenses'
     | '/funders'
-    | '/funding-checks'
     | '/journal-entries'
     | '/projects'
     | '/reports'
@@ -175,7 +163,6 @@ export interface FileRouteTypes {
     | '/_authenticated/expense-categories'
     | '/_authenticated/expenses'
     | '/_authenticated/funders'
-    | '/_authenticated/funding-checks'
     | '/_authenticated/journal-entries'
     | '/_authenticated/projects'
     | '/_authenticated/reports'
@@ -239,13 +226,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedJournalEntriesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/funding-checks': {
-      id: '/_authenticated/funding-checks'
-      path: '/funding-checks'
-      fullPath: '/funding-checks'
-      preLoaderRoute: typeof AuthenticatedFundingChecksRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/funders': {
       id: '/_authenticated/funders'
       path: '/funders'
@@ -290,7 +270,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedExpenseCategoriesRoute: typeof AuthenticatedExpenseCategoriesRoute
   AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
   AuthenticatedFundersRoute: typeof AuthenticatedFundersRoute
-  AuthenticatedFundingChecksRoute: typeof AuthenticatedFundingChecksRoute
   AuthenticatedJournalEntriesRoute: typeof AuthenticatedJournalEntriesRoute
   AuthenticatedProjectsRoute: typeof AuthenticatedProjectsRoute
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
@@ -302,7 +281,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedExpenseCategoriesRoute: AuthenticatedExpenseCategoriesRoute,
   AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,
   AuthenticatedFundersRoute: AuthenticatedFundersRoute,
-  AuthenticatedFundingChecksRoute: AuthenticatedFundingChecksRoute,
   AuthenticatedJournalEntriesRoute: AuthenticatedJournalEntriesRoute,
   AuthenticatedProjectsRoute: AuthenticatedProjectsRoute,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,

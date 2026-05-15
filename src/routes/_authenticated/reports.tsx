@@ -37,11 +37,13 @@ function FundingReport() {
     queryKey: ["report-funding"],
     queryFn: async () => {
       const { data: checks } = await supabase.from("funding_checks").select("*, funders(name)").is("deleted_at", null).order("received_date", { ascending: false });
-      const { data: exp } = await supabase.from("expenses").select("funding_check_id, amount, projects(name)").is("deleted_at", null);
+      const { data: allocs } = await supabase.from("expense_funding_allocations")
+        .select("funding_check_id, amount, expenses!inner(deleted_at, projects(name))")
+        .is("expenses.deleted_at", null);
       return (checks ?? []).map((c: any) => {
-        const items = (exp ?? []).filter((e: any) => e.funding_check_id === c.id);
-        const spent = items.reduce((s: number, e: any) => s + Number(e.amount), 0);
-        const projects = Array.from(new Set(items.map((e: any) => e.projects?.name).filter(Boolean)));
+        const items = (allocs ?? []).filter((a: any) => a.funding_check_id === c.id);
+        const spent = items.reduce((s: number, a: any) => s + Number(a.amount), 0);
+        const projects = Array.from(new Set(items.map((a: any) => a.expenses?.projects?.name).filter(Boolean)));
         return { ...c, spent, remaining: Number(c.amount) - spent, projects };
       });
     },

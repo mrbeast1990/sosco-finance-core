@@ -21,7 +21,7 @@ function Dashboard() {
         supabase.from("expenses").select("amount").is("deleted_at", null),
         supabase.from("projects").select("id", { count: "exact", head: true }).is("deleted_at", null),
         supabase.from("expenses")
-          .select("id, amount, expense_date, description, projects(name), funding_checks(check_number), expense_categories(name)")
+          .select("id, amount, expense_date, description, projects(name), expense_categories(name), cash_accounts(name)")
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .limit(8),
@@ -81,7 +81,7 @@ function Dashboard() {
                   <TableHead>التاريخ</TableHead>
                   <TableHead>المشروع</TableHead>
                   <TableHead>الفئة</TableHead>
-                  <TableHead>الصك</TableHead>
+                  <TableHead>حساب الدفع</TableHead>
                   <TableHead>الوصف</TableHead>
                   <TableHead className="text-left">المبلغ</TableHead>
                 </TableRow>
@@ -92,7 +92,7 @@ function Dashboard() {
                     <TableCell>{formatDate(e.expense_date)}</TableCell>
                     <TableCell>{e.projects?.name ?? "—"}</TableCell>
                     <TableCell>{e.expense_categories?.name ?? "—"}</TableCell>
-                    <TableCell className="tabular-nums" dir="ltr">{e.funding_checks?.check_number ?? "—"}</TableCell>
+                    <TableCell>{e.cash_accounts?.name ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{e.description ?? "—"}</TableCell>
                     <TableCell className="text-left font-medium tabular-nums">{formatCurrency(e.amount)}</TableCell>
                   </TableRow>

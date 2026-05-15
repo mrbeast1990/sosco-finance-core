@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Paperclip } from "lucide-react";
+import { Plus, Search, Paperclip, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -19,30 +19,38 @@ import { LoadingState, EmptyState } from "@/components/States";
 
 export const Route = createFileRoute("/_authenticated/expenses")({ component: ExpensesPage });
 
+type Allocation = { funding_check_id: string; amount: string };
+
 function ExpensesPage() {
   const qc = useQueryClient();
-  const { canWrite, user } = useAuth();
+  const { can, user } = useAuth();
+  const canCreate = can("expenses.create");
   const [search, setSearch] = useState("");
   const [filterProject, setFilterProject] = useState("all");
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [form, setForm] = useState({
-    project_id: "", funding_check_id: "", category_id: "",
+    project_id: "", category_id: "", payment_account_id: "",
     amount: "", expense_date: new Date().toISOString().slice(0, 10), description: "",
   });
+  const [allocations, setAllocations] = useState<Allocation[]>([{ funding_check_id: "", amount: "" }]);
 
   const { data: projects } = useQuery({ queryKey: ["projects-sel"],
     queryFn: async () => (await supabase.from("projects").select("id,name,code").is("deleted_at", null)).data ?? [] });
-  const { data: checks } = useQuery({ queryKey: ["checks-sel"],
-    queryFn: async () => (await supabase.from("funding_checks").select("id, check_number, amount, funders(name)").is("deleted_at", null).eq("status", "active")).data ?? [] });
   const { data: cats } = useQuery({ queryKey: ["cats-sel"],
     queryFn: async () => (await supabase.from("expense_categories").select("id,name").order("name")).data ?? [] });
+  const { data: cashAccounts } = useQuery({ queryKey: ["cash-sel"],
+    queryFn: async () => (await supabase.from("cash_accounts").select("id,name,type").eq("is_active", true).order("name")).data ?? [] });
+  const { data: checks } = useQuery({ queryKey: ["checks-sel"],
+    queryFn: async () => (await supabase.from("funding_checks").select("id, check_number, amount, funders(name)").is("deleted_at", null)).data ?? [] });
   const { data: spentMap } = useQuery({ queryKey: ["spent-map"],
     queryFn: async () => {
-      const { data } = await supabase.from("expenses").select("funding_check_id, amount").is("deleted_at", null);
+      const { data } = await supabase.from("expense_funding_allocations")
+        .select("funding_check_id, amount, expenses!inner(deleted_at)")
+        .is("expenses.deleted_at", null);
       const m: Record<string, number> = {};
-      (data ?? []).forEach((e) => { m[e.funding_check_id] = (m[e.funding_check_id] ?? 0) + Number(e.amount); });
+      (data ?? []).forEach((a: any) => { m[a.funding_check_id] = (m[a.funding_check_id] ?? 0) + Number(a.amount); });
       return m;
     },
   });
@@ -51,7 +59,7 @@ function ExpensesPage() {
     queryKey: ["expenses"],
     queryFn: async () => {
       const { data, error } = await supabase.from("expenses")
-        .select("*, projects(name, code), funding_checks(check_number), expense_categories(name)")
+        .select("*, projects(name, code), expense_categories(name), cash_accounts(name), expense_funding_allocations(amount, funding_checks(check_number))")
         .is("deleted_at", null).order("expense_date", { ascending: false }).limit(500);
       if (error) throw error;
       return data;
@@ -61,24 +69,25 @@ function ExpensesPage() {
   const filtered = useMemo(() => (data ?? []).filter((e: any) => {
     if (filterProject !== "all" && e.project_id !== filterProject) return false;
     if (!search) return true;
-    return (e.description ?? "").includes(search) || (e.projects?.name ?? "").includes(search) || (e.funding_checks?.check_number ?? "").includes(search);
+    return (e.description ?? "").includes(search) || (e.projects?.name ?? "").includes(search);
   }), [data, search, filterProject]);
 
-  const selectedCheck = (checks ?? []).find((c: any) => c.id === form.funding_check_id);
-  const remaining = selectedCheck ? Number(selectedCheck.amount) - (spentMap?.[selectedCheck.id] ?? 0) : 0;
   const amountNum = Number(form.amount) || 0;
-  const overspend = !!selectedCheck && amountNum > remaining;
+  const allocTotal = allocations.reduce((s, a) => s + (Number(a.amount) || 0), 0);
+  const allocMismatch = amountNum > 0 && Math.round(allocTotal * 100) !== Math.round(amountNum * 100);
 
   function openNew() {
-    setForm({ project_id: "", funding_check_id: "", category_id: "", amount: "",
+    setForm({ project_id: "", category_id: "", payment_account_id: "", amount: "",
       expense_date: new Date().toISOString().slice(0, 10), description: "" });
+    setAllocations([{ funding_check_id: "", amount: "" }]);
     setFile(null);
     setOpen(true);
   }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (overspend) return toast.error("المبلغ يتجاوز الرصيد المتبقي للصك");
+    if (allocMismatch) return toast.error("مجموع التخصيصات لا يساوي مبلغ المصروف");
+    if (allocations.some((a) => !a.funding_check_id || !a.amount)) return toast.error("أكمل بيانات التخصيصات");
     setBusy(true);
     try {
       let attachment_url: string | null = null;
@@ -88,17 +97,18 @@ function ExpensesPage() {
         if (up.error) throw up.error;
         attachment_url = up.data.path;
       }
-      const { error } = await supabase.from("expenses").insert({
-        project_id: form.project_id,
-        funding_check_id: form.funding_check_id,
-        category_id: form.category_id,
-        amount: Number(form.amount),
-        expense_date: form.expense_date,
-        description: form.description || null,
-        attachment_url,
+      const { error } = await supabase.rpc("create_expense_atomic", {
+        _project_id: form.project_id,
+        _category_id: form.category_id,
+        _payment_account_id: form.payment_account_id,
+        _amount: Number(form.amount),
+        _expense_date: form.expense_date,
+        _description: form.description || "",
+        _attachment_url: attachment_url ?? "",
+        _allocations: allocations.map((a) => ({ funding_check_id: a.funding_check_id, amount: Number(a.amount) })),
       });
       if (error) throw error;
-      toast.success("تم تسجيل المصروف", { description: "تم إنشاء قيد محاسبي تلقائياً" });
+      toast.success("تم تسجيل المصروف", { description: "تم إنشاء قيد محاسبي وتخصيصات التمويل" });
       setOpen(false);
       qc.invalidateQueries();
     } catch (err: any) {
@@ -116,11 +126,11 @@ function ExpensesPage() {
 
   return (
     <div>
-      <PageHeader title="المصروفات" description="تسجيل المصروفات وربطها بالمشاريع وصكوك التمويل"
-        actions={canWrite && (
+      <PageHeader title="المصروفات" description="تسجيل المصروفات مع تخصيص مصادر التمويل تلقائياً"
+        actions={canCreate && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button onClick={openNew}><Plus className="size-4" /> مصروف جديد</Button></DialogTrigger>
-            <DialogContent dir="rtl" className="max-w-xl">
+            <DialogContent dir="rtl" className="max-w-2xl">
               <DialogHeader><DialogTitle>تسجيل مصروف جديد</DialogTitle></DialogHeader>
               <form onSubmit={onSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
@@ -135,40 +145,68 @@ function ExpensesPage() {
                       <SelectContent>{(cats ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                     </Select></div>
                 </div>
-                <div className="space-y-2"><Label>صك التمويل</Label>
-                  <Select value={form.funding_check_id} onValueChange={(v) => setForm({ ...form, funding_check_id: v })} required>
-                    <SelectTrigger><SelectValue placeholder="اختر الصك" /></SelectTrigger>
-                    <SelectContent>{(checks ?? []).map((c: any) => {
-                      const rem = Number(c.amount) - (spentMap?.[c.id] ?? 0);
-                      return <SelectItem key={c.id} value={c.id}>صك {c.check_number} — {c.funders?.name} — متبقي {formatCurrency(rem)}</SelectItem>;
-                    })}</SelectContent>
-                  </Select>
-                  {selectedCheck && (
-                    <div className="text-xs rounded-md bg-muted p-2 mt-1">
-                      <div className="flex justify-between"><span className="text-muted-foreground">الرصيد المتبقي:</span><span className="font-medium tabular-nums">{formatCurrency(remaining)}</span></div>
-                      {amountNum > 0 && (
-                        <div className="flex justify-between mt-1">
-                          <span className="text-muted-foreground">بعد هذا المصروف:</span>
-                          <span className={`font-medium tabular-nums ${overspend ? "text-destructive" : "text-success"}`}>{formatCurrency(remaining - amountNum)}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2"><Label>المبلغ (د.ل)</Label>
+                  <div className="space-y-2"><Label>حساب الدفع</Label>
+                    <Select value={form.payment_account_id} onValueChange={(v) => setForm({ ...form, payment_account_id: v })} required>
+                      <SelectTrigger><SelectValue placeholder="اختر حساب الصندوق/البنك" /></SelectTrigger>
+                      <SelectContent>{(cashAccounts ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select></div>
+                  <div className="space-y-2"><Label>المبلغ الإجمالي (د.ل)</Label>
                     <Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" />
-                    {overspend && <p className="text-xs text-destructive">المبلغ يتجاوز الرصيد المتبقي</p>}
                   </div>
+                </div>
+
+                <div className="space-y-2 rounded-md border p-3">
+                  <div className="flex items-center justify-between">
+                    <Label>تخصيص مصادر التمويل</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setAllocations([...allocations, { funding_check_id: "", amount: "" }])}>
+                      <Plus className="size-3.5" /> صك آخر
+                    </Button>
+                  </div>
+                  {allocations.map((a, i) => {
+                    const c = (checks ?? []).find((x: any) => x.id === a.funding_check_id);
+                    const rem = c ? Number(c.amount) - (spentMap?.[c.id] ?? 0) : 0;
+                    return (
+                      <div key={i} className="grid grid-cols-[1fr_140px_auto] gap-2 items-end">
+                        <div>
+                          <Select value={a.funding_check_id} onValueChange={(v) => {
+                            const next = [...allocations]; next[i] = { ...next[i], funding_check_id: v }; setAllocations(next);
+                          }} required>
+                            <SelectTrigger><SelectValue placeholder="اختر صك تمويل" /></SelectTrigger>
+                            <SelectContent>{(checks ?? []).map((x: any) => {
+                              const r = Number(x.amount) - (spentMap?.[x.id] ?? 0);
+                              return <SelectItem key={x.id} value={x.id}>صك {x.check_number} — {x.funders?.name} — متبقي {formatCurrency(r)}</SelectItem>;
+                            })}</SelectContent>
+                          </Select>
+                          {c && <div className="text-[11px] text-muted-foreground mt-1">المتبقي: <span className="tabular-nums">{formatCurrency(rem)}</span></div>}
+                        </div>
+                        <Input type="number" step="0.01" min="0.01" placeholder="المبلغ" value={a.amount} onChange={(e) => {
+                          const next = [...allocations]; next[i] = { ...next[i], amount: e.target.value }; setAllocations(next);
+                        }} dir="ltr" required />
+                        {allocations.length > 1 && (
+                          <Button type="button" variant="ghost" size="icon" onClick={() => setAllocations(allocations.filter((_, j) => j !== i))}>
+                            <X className="size-4" />
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <div className={`flex justify-between text-sm pt-2 border-t ${allocMismatch ? "text-destructive" : "text-muted-foreground"}`}>
+                    <span>مجموع التخصيصات</span>
+                    <span className="tabular-nums font-medium">{formatCurrency(allocTotal)} / {formatCurrency(amountNum)}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label>التاريخ</Label>
                     <Input required type="date" value={form.expense_date} onChange={(e) => setForm({ ...form, expense_date: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>المرفق (اختياري)</Label>
+                    <Input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></div>
                 </div>
                 <div className="space-y-2"><Label>الوصف</Label>
                   <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-                <div className="space-y-2"><Label>المرفق (اختياري)</Label>
-                  <Input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></div>
                 <DialogFooter>
-                  <Button type="submit" disabled={busy || overspend}>{busy ? "جاري الحفظ..." : "حفظ المصروف"}</Button>
+                  <Button type="submit" disabled={busy || allocMismatch}>{busy ? "جاري الحفظ..." : "حفظ المصروف"}</Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -197,7 +235,8 @@ function ExpensesPage() {
                   <TableHead>التاريخ</TableHead>
                   <TableHead>المشروع</TableHead>
                   <TableHead>الفئة</TableHead>
-                  <TableHead>الصك</TableHead>
+                  <TableHead>حساب الدفع</TableHead>
+                  <TableHead>الصكوك</TableHead>
                   <TableHead>الوصف</TableHead>
                   <TableHead className="text-left">المبلغ</TableHead>
                   <TableHead></TableHead>
@@ -209,7 +248,10 @@ function ExpensesPage() {
                     <TableCell className="text-sm text-muted-foreground">{formatDate(e.expense_date)}</TableCell>
                     <TableCell><div className="font-medium">{e.projects?.name}</div><div className="text-xs text-muted-foreground tabular-nums" dir="ltr">{e.projects?.code}</div></TableCell>
                     <TableCell>{e.expense_categories?.name}</TableCell>
-                    <TableCell className="tabular-nums" dir="ltr">{e.funding_checks?.check_number}</TableCell>
+                    <TableCell>{e.cash_accounts?.name ?? "—"}</TableCell>
+                    <TableCell className="tabular-nums text-xs" dir="ltr">
+                      {(e.expense_funding_allocations ?? []).map((a: any) => a.funding_checks?.check_number).filter(Boolean).join("، ") || "—"}
+                    </TableCell>
                     <TableCell className="text-muted-foreground text-sm max-w-[240px] truncate">{e.description ?? "—"}</TableCell>
                     <TableCell className="text-left font-medium tabular-nums">{formatCurrency(e.amount)}</TableCell>
                     <TableCell>

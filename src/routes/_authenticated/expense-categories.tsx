@@ -15,7 +15,7 @@ function CategoriesPage() {
     queryKey: ["categories"],
     queryFn: async () => {
       const { data, error } = await supabase.from("expense_categories")
-        .select("*, accounts(code, name)").order("name");
+        .select("id, name, created_at, expense_account_id, accounts:expense_account_id(code, name)").order("name");
       if (error) throw error;
       return data;
     },
