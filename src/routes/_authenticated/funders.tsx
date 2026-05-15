@@ -90,7 +90,9 @@ function FundersPage() {
               <TableBody>
                 {filtered.map((f) => (
                   <TableRow key={f.id}>
-                    <TableCell className="font-medium">{f.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link to="/funders/$funderId" params={{ funderId: f.id }} className="text-primary hover:underline">{f.name}</Link>
+                    </TableCell>
                     <TableCell className="tabular-nums" dir="ltr">{f.phone ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{f.notes ?? "—"}</TableCell>
                     {canWrite && <TableCell><Button size="sm" variant="ghost" onClick={() => openEdit(f)}><Pencil className="size-3.5" /></Button></TableCell>}
