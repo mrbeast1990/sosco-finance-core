@@ -106,19 +106,49 @@ function FunderProfile() {
   async function onCreateCheck(e: React.FormEvent) {
     e.preventDefault();
     if (!form.cash_account_id) return toast.error("اختر حساب الإيداع");
-    const { error } = await supabase.from("funding_checks").insert({
-      funder_id: funderId,
-      check_number: form.check_number,
-      amount: Number(form.amount),
-      cash_account_id: form.cash_account_id,
-      received_date: form.received_date,
-      notes: form.notes || null,
+    setBusy(true);
+    try {
+      let attachment_url: string | null = null;
+      if (checkFile) {
+        const path = `${user!.id}/${Date.now()}-${checkFile.name}`;
+        const up = await supabase.storage.from("check-attachments").upload(path, checkFile);
+        if (up.error) throw up.error;
+        attachment_url = up.data.path;
+      }
+      const { error } = await supabase.from("funding_checks").insert({
+        funder_id: funderId,
+        check_number: form.check_number,
+        amount: Number(form.amount),
+        amount_usd: form.amount_usd ? Number(form.amount_usd) : null,
+        cash_account_id: form.cash_account_id,
+        received_date: form.received_date,
+        notes: form.notes || null,
+        attachment_url,
+      });
+      if (error) throw error;
+      toast.success("تمت إضافة الصك");
+      setOpen(false);
+      setForm({ check_number: "", amount: "", amount_usd: "", cash_account_id: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
+      setCheckFile(null);
+      qc.invalidateQueries({ queryKey: ["funder-checks", funderId] });
+    } catch (err: any) {
+      toast.error("فشل الحفظ", { description: err.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openEdit(c: any) {
+    setEditing(c);
+    setEditFile(null);
+    setForm({
+      check_number: c.check_number,
+      amount: String(c.amount),
+      amount_usd: c.amount_usd != null ? String(c.amount_usd) : "",
+      cash_account_id: c.cash_account_id,
+      received_date: c.received_date,
+      notes: c.notes ?? "",
     });
-    if (error) return toast.error("فشل الحفظ", { description: error.message });
-    toast.success("تمت إضافة الصك");
-    setOpen(false);
-    setForm({ check_number: "", amount: "", cash_account_id: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
-    qc.invalidateQueries({ queryKey: ["funder-checks", funderId] });
   }
 
   function openEdit(c: any) {
