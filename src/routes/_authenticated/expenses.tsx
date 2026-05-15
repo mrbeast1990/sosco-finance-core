@@ -59,7 +59,7 @@ function ExpensesPage() {
     queryKey: ["expenses"],
     queryFn: async () => {
       const { data, error } = await supabase.from("expenses")
-        .select("*, projects(name, code), expense_categories(name), cash_accounts(name), expense_funding_allocations(amount, funding_checks(check_number))")
+        .select("*, projects(name, code), expense_categories(name), expense_funding_allocations(amount, funding_checks(check_number, cash_accounts(name)))")
         .is("deleted_at", null).order("expense_date", { ascending: false }).limit(500);
       if (error) throw error;
       return data;
