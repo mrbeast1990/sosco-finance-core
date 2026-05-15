@@ -204,7 +204,6 @@ export type Database = {
           expense_date: string
           id: string
           journal_entry_id: string | null
-          payment_account_id: string | null
           project_id: string
           updated_at: string | null
           updated_by: string | null
@@ -220,7 +219,6 @@ export type Database = {
           expense_date?: string
           id?: string
           journal_entry_id?: string | null
-          payment_account_id?: string | null
           project_id: string
           updated_at?: string | null
           updated_by?: string | null
@@ -236,7 +234,6 @@ export type Database = {
           expense_date?: string
           id?: string
           journal_entry_id?: string | null
-          payment_account_id?: string | null
           project_id?: string
           updated_at?: string | null
           updated_by?: string | null
@@ -254,13 +251,6 @@ export type Database = {
             columns: ["journal_entry_id"]
             isOneToOne: false
             referencedRelation: "journal_entries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "expenses_payment_account_id_fkey"
-            columns: ["payment_account_id"]
-            isOneToOne: false
-            referencedRelation: "cash_accounts"
             referencedColumns: ["id"]
           },
           {
@@ -305,6 +295,7 @@ export type Database = {
       funding_checks: {
         Row: {
           amount: number
+          cash_account_id: string
           check_number: string
           created_at: string
           created_by: string | null
@@ -316,6 +307,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          cash_account_id: string
           check_number: string
           created_at?: string
           created_by?: string | null
@@ -327,6 +319,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          cash_account_id?: string
           check_number?: string
           created_at?: string
           created_by?: string | null
@@ -337,6 +330,13 @@ export type Database = {
           received_date?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "funding_checks_cash_account_id_fkey"
+            columns: ["cash_account_id"]
+            isOneToOne: false
+            referencedRelation: "cash_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "funding_checks_funder_id_fkey"
             columns: ["funder_id"]
@@ -608,7 +608,6 @@ export type Database = {
           _category_id: string
           _description: string
           _expense_date: string
-          _payment_account_id: string
           _project_id: string
         }
         Returns: string
