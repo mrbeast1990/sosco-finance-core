@@ -229,6 +229,7 @@ function FunderProfile() {
                   <TableHead>رقم الصك</TableHead><TableHead>حساب الإيداع</TableHead><TableHead>تاريخ الاستلام</TableHead>
                   <TableHead>المبلغ</TableHead><TableHead>المستخدم</TableHead>
                   <TableHead>المتبقي</TableHead><TableHead className="w-48">نسبة الاستهلاك</TableHead>
+                  {(canEditCheck || canDeleteCheck) && <TableHead className="w-24"></TableHead>}
                 </TableRow></TableHeader>
                 <TableBody>
                   {(checks ?? []).map((c: any) => {
@@ -244,6 +245,22 @@ function FunderProfile() {
                         <TableCell className="tabular-nums text-muted-foreground">{formatCurrency(used)}</TableCell>
                         <TableCell className={`tabular-nums font-semibold ${remaining <= 0 ? "text-destructive" : "text-primary"}`}>{formatCurrency(remaining)}</TableCell>
                         <TableCell><Progress value={pct} className="h-2" /><span className="text-xs text-muted-foreground">{pct.toFixed(1)}%</span></TableCell>
+                        {(canEditCheck || canDeleteCheck) && (
+                          <TableCell>
+                            <div className="flex gap-1">
+                              {canEditCheck && (
+                                <Button size="icon" variant="ghost" onClick={() => openEdit(c)} title="تعديل">
+                                  <Pencil className="size-3.5" />
+                                </Button>
+                              )}
+                              {canDeleteCheck && (
+                                <Button size="icon" variant="ghost" onClick={() => setDeleting(c)} disabled={used > 0} title={used > 0 ? "لا يمكن الحذف — مستهلك جزئياً" : "حذف"}>
+                                  <Trash2 className={`size-3.5 ${used > 0 ? "" : "text-destructive"}`} />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
