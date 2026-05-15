@@ -77,12 +77,25 @@ function ExpensesPage() {
   const allocMismatch = amountNum > 0 && Math.round(allocTotal * 100) !== Math.round(amountNum * 100);
 
   function openNew() {
-    setForm({ project_id: "", category_id: "", payment_account_id: "", amount: "",
+    setForm({ project_id: "", category_id: "", amount: "",
       expense_date: new Date().toISOString().slice(0, 10), description: "" });
     setAllocations([{ funding_check_id: "", amount: "" }]);
     setFile(null);
     setOpen(true);
   }
+
+  // Auto-derived: which cash accounts will be debited and by how much
+  const cashSummary = useMemo(() => {
+    const m = new Map<string, number>();
+    allocations.forEach((a) => {
+      if (!a.funding_check_id || !a.amount) return;
+      const c = (checks ?? []).find((x: any) => x.id === a.funding_check_id);
+      const name = c?.cash_accounts?.name;
+      if (!name) return;
+      m.set(name, (m.get(name) ?? 0) + Number(a.amount));
+    });
+    return Array.from(m.entries());
+  }, [allocations, checks]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -100,7 +113,6 @@ function ExpensesPage() {
       const { error } = await supabase.rpc("create_expense_atomic", {
         _project_id: form.project_id,
         _category_id: form.category_id,
-        _payment_account_id: form.payment_account_id,
         _amount: Number(form.amount),
         _expense_date: form.expense_date,
         _description: form.description || "",
