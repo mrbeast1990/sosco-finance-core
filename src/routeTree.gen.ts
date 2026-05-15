@@ -9,38 +9,208 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
+import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticated/projects'
+import { Route as AuthenticatedJournalEntriesRouteImport } from './routes/_authenticated/journal-entries'
+import { Route as AuthenticatedFundingChecksRouteImport } from './routes/_authenticated/funding-checks'
+import { Route as AuthenticatedFundersRouteImport } from './routes/_authenticated/funders'
+import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
+import { Route as AuthenticatedExpenseCategoriesRouteImport } from './routes/_authenticated/expense-categories'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedAccountsRouteImport } from './routes/_authenticated/accounts'
 
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedProjectsRoute = AuthenticatedProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedJournalEntriesRoute =
+  AuthenticatedJournalEntriesRouteImport.update({
+    id: '/journal-entries',
+    path: '/journal-entries',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedFundingChecksRoute =
+  AuthenticatedFundingChecksRouteImport.update({
+    id: '/funding-checks',
+    path: '/funding-checks',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedFundersRoute = AuthenticatedFundersRouteImport.update({
+  id: '/funders',
+  path: '/funders',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedExpensesRoute = AuthenticatedExpensesRouteImport.update({
+  id: '/expenses',
+  path: '/expenses',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedExpenseCategoriesRoute =
+  AuthenticatedExpenseCategoriesRouteImport.update({
+    id: '/expense-categories',
+    path: '/expense-categories',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAccountsRoute = AuthenticatedAccountsRouteImport.update({
+  id: '/accounts',
+  path: '/accounts',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/accounts': typeof AuthenticatedAccountsRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/expense-categories': typeof AuthenticatedExpenseCategoriesRoute
+  '/expenses': typeof AuthenticatedExpensesRoute
+  '/funders': typeof AuthenticatedFundersRoute
+  '/funding-checks': typeof AuthenticatedFundingChecksRoute
+  '/journal-entries': typeof AuthenticatedJournalEntriesRoute
+  '/projects': typeof AuthenticatedProjectsRoute
+  '/reports': typeof AuthenticatedReportsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/accounts': typeof AuthenticatedAccountsRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/expense-categories': typeof AuthenticatedExpenseCategoriesRoute
+  '/expenses': typeof AuthenticatedExpensesRoute
+  '/funders': typeof AuthenticatedFundersRoute
+  '/funding-checks': typeof AuthenticatedFundingChecksRoute
+  '/journal-entries': typeof AuthenticatedJournalEntriesRoute
+  '/projects': typeof AuthenticatedProjectsRoute
+  '/reports': typeof AuthenticatedReportsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/_authenticated/accounts': typeof AuthenticatedAccountsRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/expense-categories': typeof AuthenticatedExpenseCategoriesRoute
+  '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
+  '/_authenticated/funders': typeof AuthenticatedFundersRoute
+  '/_authenticated/funding-checks': typeof AuthenticatedFundingChecksRoute
+  '/_authenticated/journal-entries': typeof AuthenticatedJournalEntriesRoute
+  '/_authenticated/projects': typeof AuthenticatedProjectsRoute
+  '/_authenticated/reports': typeof AuthenticatedReportsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/signup'
+    | '/accounts'
+    | '/dashboard'
+    | '/expense-categories'
+    | '/expenses'
+    | '/funders'
+    | '/funding-checks'
+    | '/journal-entries'
+    | '/projects'
+    | '/reports'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/login'
+    | '/signup'
+    | '/accounts'
+    | '/dashboard'
+    | '/expense-categories'
+    | '/expenses'
+    | '/funders'
+    | '/funding-checks'
+    | '/journal-entries'
+    | '/projects'
+    | '/reports'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/login'
+    | '/signup'
+    | '/_authenticated/accounts'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/expense-categories'
+    | '/_authenticated/expenses'
+    | '/_authenticated/funders'
+    | '/_authenticated/funding-checks'
+    | '/_authenticated/journal-entries'
+    | '/_authenticated/projects'
+    | '/_authenticated/reports'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  LoginRoute: typeof LoginRoute
+  SignupRoute: typeof SignupRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +218,105 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/reports': {
+      id: '/_authenticated/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AuthenticatedReportsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/projects': {
+      id: '/_authenticated/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof AuthenticatedProjectsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/journal-entries': {
+      id: '/_authenticated/journal-entries'
+      path: '/journal-entries'
+      fullPath: '/journal-entries'
+      preLoaderRoute: typeof AuthenticatedJournalEntriesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/funding-checks': {
+      id: '/_authenticated/funding-checks'
+      path: '/funding-checks'
+      fullPath: '/funding-checks'
+      preLoaderRoute: typeof AuthenticatedFundingChecksRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/funders': {
+      id: '/_authenticated/funders'
+      path: '/funders'
+      fullPath: '/funders'
+      preLoaderRoute: typeof AuthenticatedFundersRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/expenses': {
+      id: '/_authenticated/expenses'
+      path: '/expenses'
+      fullPath: '/expenses'
+      preLoaderRoute: typeof AuthenticatedExpensesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/expense-categories': {
+      id: '/_authenticated/expense-categories'
+      path: '/expense-categories'
+      fullPath: '/expense-categories'
+      preLoaderRoute: typeof AuthenticatedExpenseCategoriesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/accounts': {
+      id: '/_authenticated/accounts'
+      path: '/accounts'
+      fullPath: '/accounts'
+      preLoaderRoute: typeof AuthenticatedAccountsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
+interface AuthenticatedRouteChildren {
+  AuthenticatedAccountsRoute: typeof AuthenticatedAccountsRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedExpenseCategoriesRoute: typeof AuthenticatedExpenseCategoriesRoute
+  AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
+  AuthenticatedFundersRoute: typeof AuthenticatedFundersRoute
+  AuthenticatedFundingChecksRoute: typeof AuthenticatedFundingChecksRoute
+  AuthenticatedJournalEntriesRoute: typeof AuthenticatedJournalEntriesRoute
+  AuthenticatedProjectsRoute: typeof AuthenticatedProjectsRoute
+  AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
+}
+
+const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAccountsRoute: AuthenticatedAccountsRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedExpenseCategoriesRoute: AuthenticatedExpenseCategoriesRoute,
+  AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,
+  AuthenticatedFundersRoute: AuthenticatedFundersRoute,
+  AuthenticatedFundingChecksRoute: AuthenticatedFundingChecksRoute,
+  AuthenticatedJournalEntriesRoute: AuthenticatedJournalEntriesRoute,
+  AuthenticatedProjectsRoute: AuthenticatedProjectsRoute,
+  AuthenticatedReportsRoute: AuthenticatedReportsRoute,
+}
+
+const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
+  AuthenticatedRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  LoginRoute: LoginRoute,
+  SignupRoute: SignupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
