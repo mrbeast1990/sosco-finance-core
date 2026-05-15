@@ -82,6 +82,7 @@ function ExpensesPage() {
       expense_date: new Date().toISOString().slice(0, 10), description: "" });
     setAllocations([{ funding_check_id: "", amount: "" }]);
     setFile(null);
+    setExcelFile(null);
     setOpen(true);
   }
 
