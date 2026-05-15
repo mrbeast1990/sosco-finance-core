@@ -30,6 +30,7 @@ function ExpensesPage() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [excelFile, setExcelFile] = useState<File | null>(null);
   const [form, setForm] = useState({
     project_id: "", category_id: "",
     amount: "", expense_date: new Date().toISOString().slice(0, 10), description: "",
