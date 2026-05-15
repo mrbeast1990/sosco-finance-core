@@ -96,17 +96,19 @@ function FunderProfile() {
 
   async function onCreateCheck(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.cash_account_id) return toast.error("اختر حساب الإيداع");
     const { error } = await supabase.from("funding_checks").insert({
       funder_id: funderId,
       check_number: form.check_number,
       amount: Number(form.amount),
+      cash_account_id: form.cash_account_id,
       received_date: form.received_date,
       notes: form.notes || null,
     });
     if (error) return toast.error("فشل الحفظ", { description: error.message });
     toast.success("تمت إضافة الصك");
     setOpen(false);
-    setForm({ check_number: "", amount: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
+    setForm({ check_number: "", amount: "", cash_account_id: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
     qc.invalidateQueries({ queryKey: ["funder-checks", funderId] });
   }
 
