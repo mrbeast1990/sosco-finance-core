@@ -340,6 +340,16 @@ function ExpensesPage() {
                             <FileSpreadsheet className="size-3.5 text-success" />
                           </Button>
                         )}
+                        {canEdit && (
+                          <Button size="sm" variant="ghost" onClick={() => openEditExp(e)} title="تعديل">
+                            <Pencil className="size-3.5" />
+                          </Button>
+                        )}
+                        {canDelete && (
+                          <Button size="sm" variant="ghost" onClick={() => setReversing(e)} title="عكس/حذف">
+                            <Undo2 className="size-3.5 text-destructive" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
