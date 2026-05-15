@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { LoadingState, EmptyState } from "@/components/States";
 
-export const Route = createFileRoute("/_authenticated/funders")({ component: FundersPage });
+export const Route = createFileRoute("/_authenticated/funders/")({ component: FundersPage });
 
 function FundersPage() {
   const qc = useQueryClient();
