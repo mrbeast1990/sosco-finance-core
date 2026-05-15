@@ -147,7 +147,40 @@ function ExpensesPage() {
     }
   }
 
-  async function downloadAttachment(path: string) {
+  function openEditExp(e: any) {
+    setEditingExp(e);
+    setEditForm({ description: e.description ?? "", expense_date: e.expense_date });
+  }
+
+  async function onSaveEditExp(ev: React.FormEvent) {
+    ev.preventDefault();
+    if (!editingExp) return;
+    const { error } = await supabase.from("expenses").update({
+      description: editForm.description || null,
+      expense_date: editForm.expense_date,
+      updated_at: new Date().toISOString(),
+      updated_by: user!.id,
+    }).eq("id", editingExp.id);
+    if (error) return toast.error("فشل التعديل", { description: error.message });
+    toast.success("تم تحديث المصروف");
+    setEditingExp(null);
+    qc.invalidateQueries({ queryKey: ["expenses"] });
+  }
+
+  async function onConfirmReverse() {
+    if (!reversing) return;
+    const { error } = await supabase.rpc("reverse_expense_atomic", {
+      _expense_id: reversing.id,
+      _reason: reverseReason || "حذف بدون سبب",
+    });
+    if (error) return toast.error("فشل عكس المصروف", { description: error.message });
+    toast.success("تم عكس المصروف وإنشاء قيد عكسي");
+    setReversing(null);
+    setReverseReason("");
+    qc.invalidateQueries();
+  }
+
+
     const { data, error } = await supabase.storage.from("expense-attachments").createSignedUrl(path, 60);
     if (error || !data) return toast.error("فشل تحميل المرفق");
     window.open(data.signedUrl, "_blank");
