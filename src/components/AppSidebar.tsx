@@ -1,7 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutDashboard, Briefcase, Users, FileText, Tags, Receipt,
-  BookOpen, Network, BarChart3, LogOut, Building2,
+  LayoutDashboard, Briefcase, Users, Receipt,
+  BookOpen, Network, BarChart3, LogOut, Building2, Settings,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -11,36 +11,34 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "./ui/button";
 
 const groups = [
-  {
-    label: "الرئيسية",
-    items: [{ title: "لوحة التحكم", url: "/dashboard", icon: LayoutDashboard }],
-  },
+  { label: "الرئيسية", items: [{ title: "لوحة التحكم", url: "/dashboard", icon: LayoutDashboard, perm: null }] },
   {
     label: "البيانات الأساسية",
     items: [
-      { title: "المشاريع", url: "/projects", icon: Briefcase },
-      { title: "الممولون", url: "/funders", icon: Users },
-      { title: "صكوك التمويل", url: "/funding-checks", icon: FileText },
-      { title: "فئات المصروفات", url: "/expense-categories", icon: Tags },
+      { title: "المشاريع", url: "/projects", icon: Briefcase, perm: "projects.view" },
+      { title: "الممولون", url: "/funders", icon: Users, perm: "funders.view" },
     ],
   },
   {
     label: "العمليات المالية",
     items: [
-      { title: "المصروفات", url: "/expenses", icon: Receipt },
-      { title: "القيود اليومية", url: "/journal-entries", icon: BookOpen },
-      { title: "شجرة الحسابات", url: "/accounts", icon: Network },
+      { title: "المصروفات", url: "/expenses", icon: Receipt, perm: "expenses.view" },
+      { title: "القيود اليومية", url: "/journal-entries", icon: BookOpen, perm: "journal.view" },
+      { title: "شجرة الحسابات", url: "/accounts", icon: Network, perm: "accounts.view" },
     ],
   },
   {
-    label: "التحليلات",
-    items: [{ title: "التقارير", url: "/reports", icon: BarChart3 }],
+    label: "النظام",
+    items: [
+      { title: "التقارير", url: "/reports", icon: BarChart3, perm: "reports.view" },
+      { title: "الإعدادات", url: "/settings", icon: Settings, perm: "settings.view" },
+    ],
   },
 ];
 
 export function AppSidebar() {
   const path = useRouterState({ select: (r) => r.location.pathname });
-  const { user, roles, signOut } = useAuth();
+  const { user, can, isAdmin, signOut } = useAuth();
 
   return (
     <Sidebar side="right" collapsible="icon">
@@ -54,36 +52,38 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        {groups.map((g) => (
-          <SidebarGroup key={g.label}>
-            <SidebarGroupLabel>{g.label}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {g.items.map((item) => {
-                  const active = path === item.url || path.startsWith(item.url + "/");
-                  return (
-                    <SidebarMenuItem key={item.url}>
-                      <SidebarMenuButton asChild isActive={active}>
-                        <Link to={item.url} className="flex items-center gap-2">
-                          <item.icon className="size-4" />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
+        {groups.map((g) => {
+          const items = g.items.filter((i) => !i.perm || can(i.perm) || isAdmin);
+          if (items.length === 0) return null;
+          return (
+            <SidebarGroup key={g.label}>
+              <SidebarGroupLabel>{g.label}</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {items.map((item) => {
+                    const active = path === item.url || path.startsWith(item.url + "/");
+                    return (
+                      <SidebarMenuItem key={item.url}>
+                        <SidebarMenuButton asChild isActive={active}>
+                          <Link to={item.url} className="flex items-center gap-2">
+                            <item.icon className="size-4" />
+                            <span>{item.title}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          );
+        })}
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-3">
         <div className="flex flex-col gap-2">
           <div className="px-1 text-xs">
             <div className="font-medium text-sidebar-foreground truncate">{user?.email}</div>
-            <div className="text-sidebar-foreground/60">
-              {roles.includes("admin") ? "مدير" : roles.includes("accountant") ? "محاسب" : "مشاهد"}
-            </div>
+            <div className="text-sidebar-foreground/60">{isAdmin ? "مدير" : "مستخدم"}</div>
           </div>
           <Button variant="ghost" size="sm" onClick={signOut} className="justify-start text-sidebar-foreground hover:bg-sidebar-accent">
             <LogOut className="size-4" />
