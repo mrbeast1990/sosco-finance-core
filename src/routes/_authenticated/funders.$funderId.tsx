@@ -44,7 +44,7 @@ function FunderProfile() {
 
   const { data: checks } = useQuery({
     queryKey: ["funder-checks", funderId],
-    queryFn: async () => (await supabase.from("funding_checks").select("*").eq("funder_id", funderId).is("deleted_at", null).order("received_date", { ascending: false })).data ?? [],
+    queryFn: async () => (await supabase.from("funding_checks").select("*, cash_accounts(name)").eq("funder_id", funderId).is("deleted_at", null).order("received_date", { ascending: false })).data ?? [],
   });
 
   const checkIds = useMemo(() => (checks ?? []).map((c) => c.id), [checks]);
