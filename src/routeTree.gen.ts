@@ -17,10 +17,10 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
 import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticated/projects'
 import { Route as AuthenticatedJournalEntriesRouteImport } from './routes/_authenticated/journal-entries'
-import { Route as AuthenticatedFundersRouteImport } from './routes/_authenticated/funders'
 import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAccountsRouteImport } from './routes/_authenticated/accounts'
+import { Route as AuthenticatedFundersIndexRouteImport } from './routes/_authenticated/funders.index'
 import { Route as AuthenticatedFundersFunderIdRouteImport } from './routes/_authenticated/funders.$funderId'
 
 const SignupRoute = SignupRouteImport.update({
@@ -63,11 +63,6 @@ const AuthenticatedJournalEntriesRoute =
     path: '/journal-entries',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedFundersRoute = AuthenticatedFundersRouteImport.update({
-  id: '/funders',
-  path: '/funders',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
 const AuthenticatedExpensesRoute = AuthenticatedExpensesRouteImport.update({
   id: '/expenses',
   path: '/expenses',
@@ -83,11 +78,17 @@ const AuthenticatedAccountsRoute = AuthenticatedAccountsRouteImport.update({
   path: '/accounts',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedFundersIndexRoute =
+  AuthenticatedFundersIndexRouteImport.update({
+    id: '/funders/',
+    path: '/funders/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedFundersFunderIdRoute =
   AuthenticatedFundersFunderIdRouteImport.update({
-    id: '/$funderId',
-    path: '/$funderId',
-    getParentRoute: () => AuthenticatedFundersRoute,
+    id: '/funders/$funderId',
+    path: '/funders/$funderId',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -97,12 +98,12 @@ export interface FileRoutesByFullPath {
   '/accounts': typeof AuthenticatedAccountsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/expenses': typeof AuthenticatedExpensesRoute
-  '/funders': typeof AuthenticatedFundersRouteWithChildren
   '/journal-entries': typeof AuthenticatedJournalEntriesRoute
   '/projects': typeof AuthenticatedProjectsRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/funders/$funderId': typeof AuthenticatedFundersFunderIdRoute
+  '/funders/': typeof AuthenticatedFundersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -111,12 +112,12 @@ export interface FileRoutesByTo {
   '/accounts': typeof AuthenticatedAccountsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/expenses': typeof AuthenticatedExpensesRoute
-  '/funders': typeof AuthenticatedFundersRouteWithChildren
   '/journal-entries': typeof AuthenticatedJournalEntriesRoute
   '/projects': typeof AuthenticatedProjectsRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/funders/$funderId': typeof AuthenticatedFundersFunderIdRoute
+  '/funders': typeof AuthenticatedFundersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -127,12 +128,12 @@ export interface FileRoutesById {
   '/_authenticated/accounts': typeof AuthenticatedAccountsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
-  '/_authenticated/funders': typeof AuthenticatedFundersRouteWithChildren
   '/_authenticated/journal-entries': typeof AuthenticatedJournalEntriesRoute
   '/_authenticated/projects': typeof AuthenticatedProjectsRoute
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/funders/$funderId': typeof AuthenticatedFundersFunderIdRoute
+  '/_authenticated/funders/': typeof AuthenticatedFundersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -143,12 +144,12 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/dashboard'
     | '/expenses'
-    | '/funders'
     | '/journal-entries'
     | '/projects'
     | '/reports'
     | '/settings'
     | '/funders/$funderId'
+    | '/funders/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -157,12 +158,12 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/dashboard'
     | '/expenses'
-    | '/funders'
     | '/journal-entries'
     | '/projects'
     | '/reports'
     | '/settings'
     | '/funders/$funderId'
+    | '/funders'
   id:
     | '__root__'
     | '/'
@@ -172,12 +173,12 @@ export interface FileRouteTypes {
     | '/_authenticated/accounts'
     | '/_authenticated/dashboard'
     | '/_authenticated/expenses'
-    | '/_authenticated/funders'
     | '/_authenticated/journal-entries'
     | '/_authenticated/projects'
     | '/_authenticated/reports'
     | '/_authenticated/settings'
     | '/_authenticated/funders/$funderId'
+    | '/_authenticated/funders/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -245,13 +246,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedJournalEntriesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/funders': {
-      id: '/_authenticated/funders'
-      path: '/funders'
-      fullPath: '/funders'
-      preLoaderRoute: typeof AuthenticatedFundersRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/expenses': {
       id: '/_authenticated/expenses'
       path: '/expenses'
@@ -273,47 +267,45 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAccountsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/funders/': {
+      id: '/_authenticated/funders/'
+      path: '/funders'
+      fullPath: '/funders/'
+      preLoaderRoute: typeof AuthenticatedFundersIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/funders/$funderId': {
       id: '/_authenticated/funders/$funderId'
-      path: '/$funderId'
+      path: '/funders/$funderId'
       fullPath: '/funders/$funderId'
       preLoaderRoute: typeof AuthenticatedFundersFunderIdRouteImport
-      parentRoute: typeof AuthenticatedFundersRoute
+      parentRoute: typeof AuthenticatedRoute
     }
   }
 }
-
-interface AuthenticatedFundersRouteChildren {
-  AuthenticatedFundersFunderIdRoute: typeof AuthenticatedFundersFunderIdRoute
-}
-
-const AuthenticatedFundersRouteChildren: AuthenticatedFundersRouteChildren = {
-  AuthenticatedFundersFunderIdRoute: AuthenticatedFundersFunderIdRoute,
-}
-
-const AuthenticatedFundersRouteWithChildren =
-  AuthenticatedFundersRoute._addFileChildren(AuthenticatedFundersRouteChildren)
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAccountsRoute: typeof AuthenticatedAccountsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
-  AuthenticatedFundersRoute: typeof AuthenticatedFundersRouteWithChildren
   AuthenticatedJournalEntriesRoute: typeof AuthenticatedJournalEntriesRoute
   AuthenticatedProjectsRoute: typeof AuthenticatedProjectsRoute
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedFundersFunderIdRoute: typeof AuthenticatedFundersFunderIdRoute
+  AuthenticatedFundersIndexRoute: typeof AuthenticatedFundersIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAccountsRoute: AuthenticatedAccountsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,
-  AuthenticatedFundersRoute: AuthenticatedFundersRouteWithChildren,
   AuthenticatedJournalEntriesRoute: AuthenticatedJournalEntriesRoute,
   AuthenticatedProjectsRoute: AuthenticatedProjectsRoute,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedFundersFunderIdRoute: AuthenticatedFundersFunderIdRoute,
+  AuthenticatedFundersIndexRoute: AuthenticatedFundersIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
