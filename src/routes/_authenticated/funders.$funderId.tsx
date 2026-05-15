@@ -151,17 +151,6 @@ function FunderProfile() {
     });
   }
 
-  function openEdit(c: any) {
-    setEditing(c);
-    setForm({
-      check_number: c.check_number,
-      amount: String(c.amount),
-      cash_account_id: c.cash_account_id,
-      received_date: c.received_date,
-      notes: c.notes ?? "",
-    });
-  }
-
   async function onSaveEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!editing) return;
@@ -170,18 +159,34 @@ function FunderProfile() {
     if (used > 0 && newAmount < used) {
       return toast.error("لا يمكن تخفيض المبلغ تحت المستهلك", { description: `المستهلك: ${used}` });
     }
+    let attachment_url: string | undefined;
+    if (editFile) {
+      const path = `${user!.id}/${Date.now()}-${editFile.name}`;
+      const up = await supabase.storage.from("check-attachments").upload(path, editFile);
+      if (up.error) return toast.error("فشل رفع المرفق", { description: up.error.message });
+      attachment_url = up.data.path;
+    }
     const patch: any = {
       check_number: form.check_number,
       amount: newAmount,
+      amount_usd: form.amount_usd ? Number(form.amount_usd) : null,
       received_date: form.received_date,
       notes: form.notes || null,
     };
+    if (attachment_url) patch.attachment_url = attachment_url;
     if (used === 0) patch.cash_account_id = form.cash_account_id;
     const { error } = await supabase.from("funding_checks").update(patch).eq("id", editing.id);
     if (error) return toast.error("فشل التعديل", { description: error.message });
     toast.success("تم تحديث الصك");
     setEditing(null);
+    setEditFile(null);
     qc.invalidateQueries({ queryKey: ["funder-checks", funderId] });
+  }
+
+  async function downloadAttachment(path: string) {
+    const res = await supabase.storage.from("check-attachments").createSignedUrl(path, 60);
+    if (res.error || !res.data) return toast.error("فشل تحميل المرفق");
+    window.open(res.data.signedUrl, "_blank");
   }
 
   async function onConfirmDelete() {
