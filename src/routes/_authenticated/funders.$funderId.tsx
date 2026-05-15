@@ -315,6 +315,54 @@ function FunderProfile() {
           </CardContent></Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent dir="rtl">
+          <DialogHeader><DialogTitle>تعديل صك</DialogTitle></DialogHeader>
+          {editing && (() => {
+            const used = usedByCheck.get(editing.id) ?? 0;
+            return (
+              <form onSubmit={onSaveEdit} className="space-y-4">
+                {used > 0 && (
+                  <div className="rounded-md bg-muted/40 border p-2 text-xs text-muted-foreground">
+                    هذا الصك مستهلك جزئياً ({formatCurrency(used)}). حساب الإيداع مقفل ولا يمكن تخفيض المبلغ تحت المستهلك.
+                  </div>
+                )}
+                <div className="space-y-2"><Label>رقم الصك</Label>
+                  <Input required value={form.check_number} onChange={(e) => setForm({ ...form, check_number: e.target.value })} dir="ltr" /></div>
+                <div className="space-y-2"><Label>المبلغ (د.ل)</Label>
+                  <Input required type="number" step="0.01" min={used || 0.01} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" /></div>
+                <div className="space-y-2"><Label>حساب الإيداع</Label>
+                  <Select value={form.cash_account_id} onValueChange={(v) => setForm({ ...form, cash_account_id: v })} disabled={used > 0}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{(cashAccounts ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2"><Label>تاريخ الاستلام</Label>
+                  <Input required type="date" value={form.received_date} onChange={(e) => setForm({ ...form, received_date: e.target.value })} /></div>
+                <div className="space-y-2"><Label>ملاحظات</Label>
+                  <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+                <DialogFooter><Button type="submit">حفظ التعديلات</Button></DialogFooter>
+              </form>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف الصك</AlertDialogTitle>
+            <AlertDialogDescription>
+              سيتم حذف الصك رقم <span dir="ltr" className="font-medium">{deleting?.check_number}</span> بمبلغ {deleting && formatCurrency(Number(deleting.amount))}. لا يمكن التراجع.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">حذف</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
