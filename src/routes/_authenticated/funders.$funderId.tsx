@@ -134,6 +134,13 @@ function FunderProfile() {
                       <Input required value={form.check_number} onChange={(e) => setForm({ ...form, check_number: e.target.value })} dir="ltr" /></div>
                     <div className="space-y-2"><Label>المبلغ (د.ل)</Label>
                       <Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" /></div>
+                    <div className="space-y-2"><Label>حساب الإيداع (الصندوق/البنك)</Label>
+                      <Select value={form.cash_account_id} onValueChange={(v) => setForm({ ...form, cash_account_id: v })} required>
+                        <SelectTrigger><SelectValue placeholder="اختر الحساب الذي أُودع فيه الصك" /></SelectTrigger>
+                        <SelectContent>{(cashAccounts ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground">سيتم سحب المصروفات من هذا الحساب عند تخصيص الصك.</p>
+                    </div>
                     <div className="space-y-2"><Label>تاريخ الاستلام</Label>
                       <Input required type="date" value={form.received_date} onChange={(e) => setForm({ ...form, received_date: e.target.value })} /></div>
                     <div className="space-y-2"><Label>ملاحظات</Label>
