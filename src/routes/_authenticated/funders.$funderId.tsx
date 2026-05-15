@@ -26,14 +26,17 @@ export const Route = createFileRoute("/_authenticated/funders/$funderId")({ comp
 function FunderProfile() {
   const { funderId } = Route.useParams();
   const qc = useQueryClient();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const canCreateCheck = can("funding.create");
   const canEditCheck = can("funding.edit");
   const canDeleteCheck = can("funding.delete");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<any | null>(null);
-  const [form, setForm] = useState({ check_number: "", amount: "", cash_account_id: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
+  const [checkFile, setCheckFile] = useState<File | null>(null);
+  const [editFile, setEditFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ check_number: "", amount: "", amount_usd: "", cash_account_id: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
 
   const { data: cashAccounts } = useQuery({ queryKey: ["cash-active"],
     queryFn: async () => (await supabase.from("cash_accounts").select("id,name,type").eq("is_active", true).order("name")).data ?? [] });
