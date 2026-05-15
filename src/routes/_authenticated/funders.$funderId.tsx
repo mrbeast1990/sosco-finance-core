@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Plus, Phone, Wallet, Receipt, FolderKanban } from "lucide-react";
+import { ArrowRight, Plus, FolderKanban, Wallet, Receipt, Hash } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -155,7 +155,7 @@ function FunderProfile() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <KpiCard icon={<Phone className="size-4" />} label="الهاتف" value={funder.phone ?? "—"} ltr />
+        <KpiCard icon={<Hash className="size-4" />} label="رقم المشروع" value={funder.project_code ?? "—"} ltr />
         <KpiCard icon={<Wallet className="size-4" />} label="إجمالي التمويل" value={formatCurrency(totals.totalReceived)} highlight />
         <KpiCard icon={<Receipt className="size-4" />} label="إجمالي المصروف" value={formatCurrency(totals.totalUsed)} />
         <KpiCard icon={<FolderKanban className="size-4" />} label="الرصيد المتبقي" value={formatCurrency(totals.remaining)} positive={totals.remaining >= 0} />

@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Paperclip, X } from "lucide-react";
+import { Plus, Search, Paperclip, X, FileSpreadsheet } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -30,6 +30,7 @@ function ExpensesPage() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [excelFile, setExcelFile] = useState<File | null>(null);
   const [form, setForm] = useState({
     project_id: "", category_id: "",
     amount: "", expense_date: new Date().toISOString().slice(0, 10), description: "",
@@ -81,6 +82,7 @@ function ExpensesPage() {
       expense_date: new Date().toISOString().slice(0, 10), description: "" });
     setAllocations([{ funding_check_id: "", amount: "" }]);
     setFile(null);
+    setExcelFile(null);
     setOpen(true);
   }
 
@@ -104,11 +106,18 @@ function ExpensesPage() {
     setBusy(true);
     try {
       let attachment_url: string | null = null;
+      let excel_attachment_url: string | null = null;
       if (file) {
         const path = `${user!.id}/${Date.now()}-${file.name}`;
         const up = await supabase.storage.from("expense-attachments").upload(path, file);
         if (up.error) throw up.error;
         attachment_url = up.data.path;
+      }
+      if (excelFile) {
+        const path = `${user!.id}/excel-${Date.now()}-${excelFile.name}`;
+        const up = await supabase.storage.from("expense-attachments").upload(path, excelFile);
+        if (up.error) throw up.error;
+        excel_attachment_url = up.data.path;
       }
       const { error } = await supabase.rpc("create_expense_atomic", {
         _project_id: form.project_id,
@@ -118,7 +127,8 @@ function ExpensesPage() {
         _description: form.description || "",
         _attachment_url: attachment_url ?? "",
         _allocations: allocations.map((a) => ({ funding_check_id: a.funding_check_id, amount: Number(a.amount) })),
-      });
+        _excel_attachment_url: excel_attachment_url,
+      } as any);
       if (error) throw error;
       toast.success("تم تسجيل المصروف", { description: "تم إنشاء قيد محاسبي وتخصيصات التمويل" });
       setOpen(false);
@@ -218,8 +228,12 @@ function ExpensesPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label>التاريخ</Label>
                     <Input required type="date" value={form.expense_date} onChange={(e) => setForm({ ...form, expense_date: e.target.value })} /></div>
-                  <div className="space-y-2"><Label>المرفق (اختياري)</Label>
+                  <div className="space-y-2"><Label>مرفق صورة/PDF (اختياري)</Label>
                     <Input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></div>
+                </div>
+                <div className="space-y-2"><Label>مرفق Excel (اختياري)</Label>
+                  <Input type="file" accept=".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => setExcelFile(e.target.files?.[0] ?? null)} />
+                  {excelFile && <p className="text-xs text-muted-foreground">{excelFile.name}</p>}
                 </div>
                 <div className="space-y-2"><Label>الوصف</Label>
                   <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
@@ -275,11 +289,18 @@ function ExpensesPage() {
                     <TableCell className="text-muted-foreground text-sm max-w-[240px] truncate">{e.description ?? "—"}</TableCell>
                     <TableCell className="text-left font-medium tabular-nums">{formatCurrency(e.amount)}</TableCell>
                     <TableCell>
-                      {e.attachment_url && (
-                        <Button size="sm" variant="ghost" onClick={() => downloadAttachment(e.attachment_url)}>
-                          <Paperclip className="size-3.5" />
-                        </Button>
-                      )}
+                      <div className="flex gap-1">
+                        {e.attachment_url && (
+                          <Button size="sm" variant="ghost" onClick={() => downloadAttachment(e.attachment_url)} title="مرفق">
+                            <Paperclip className="size-3.5" />
+                          </Button>
+                        )}
+                        {e.excel_attachment_url && (
+                          <Button size="sm" variant="ghost" onClick={() => downloadAttachment(e.excel_attachment_url)} title="ملف Excel">
+                            <FileSpreadsheet className="size-3.5 text-success" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

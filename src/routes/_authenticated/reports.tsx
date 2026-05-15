@@ -1,12 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Search } from "lucide-react";
 import { LoadingState, EmptyState } from "@/components/States";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from "recharts";
 
@@ -17,17 +21,171 @@ const COLORS = ["oklch(0.6 0.13 195)", "oklch(0.62 0.15 155)", "oklch(0.7 0.15 6
 function ReportsPage() {
   return (
     <div>
-      <PageHeader title="التقارير" description="تقارير شاملة عن التمويل والمصروفات" />
-      <Tabs defaultValue="funding">
+      <PageHeader title="التقارير" description="تقارير شاملة عن التمويل والمصروفات وتتبع الصكوك والمشاريع" />
+      <Tabs defaultValue="tracker">
         <TabsList>
+          <TabsTrigger value="tracker">تتبع برقم</TabsTrigger>
           <TabsTrigger value="funding">تقرير التمويل</TabsTrigger>
           <TabsTrigger value="projects">مصروفات المشاريع</TabsTrigger>
           <TabsTrigger value="analysis">تحليل المصروفات</TabsTrigger>
         </TabsList>
+        <TabsContent value="tracker"><Tracker /></TabsContent>
         <TabsContent value="funding"><FundingReport /></TabsContent>
         <TabsContent value="projects"><ProjectsReport /></TabsContent>
         <TabsContent value="analysis"><AnalysisReport /></TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function Tracker() {
+  const [q, setQ] = useState("");
+  const term = q.trim();
+
+  const { data: results, isFetching } = useQuery({
+    queryKey: ["tracker", term],
+    enabled: term.length > 0,
+    queryFn: async () => {
+      const [chk, prj] = await Promise.all([
+        supabase.from("funding_checks")
+          .select("id, check_number, amount, received_date, notes, funders(name, project_code), cash_accounts(name)")
+          .ilike("check_number", `%${term}%`).is("deleted_at", null).limit(20),
+        supabase.from("projects")
+          .select("id, code, name, status, notes")
+          .ilike("code", `%${term}%`).is("deleted_at", null).limit(20),
+      ]);
+      return { checks: chk.data ?? [], projects: prj.data ?? [] };
+    },
+  });
+
+  return (
+    <Card><CardContent className="p-4 space-y-4">
+      <div className="relative">
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+        <Input placeholder="ابحث برقم صك أو رقم مشروع..." className="pr-9" value={q} onChange={(e) => setQ(e.target.value)} dir="ltr" />
+      </div>
+      {!term && <EmptyState title="اكتب رقم صك أو رقم مشروع لعرض التفاصيل والتتبع" />}
+      {term && isFetching && <LoadingState />}
+      {term && !isFetching && results && (results.checks.length === 0 && results.projects.length === 0) && <EmptyState title="لا توجد نتائج" />}
+      {results?.checks.map((c: any) => <CheckDetails key={c.id} check={c} />)}
+      {results?.projects.map((p: any) => <ProjectDetails key={p.id} project={p} />)}
+    </CardContent></Card>
+  );
+}
+
+function CheckDetails({ check }: { check: any }) {
+  const { data: allocs } = useQuery({
+    queryKey: ["tracker-check", check.id],
+    queryFn: async () => (await supabase.from("expense_funding_allocations")
+      .select("amount, expenses!inner(id, expense_date, description, deleted_at, projects(code, name), expense_categories(name))")
+      .eq("funding_check_id", check.id).is("expenses.deleted_at", null)).data ?? [],
+  });
+  const used = (allocs ?? []).reduce((s: number, a: any) => s + Number(a.amount), 0);
+  const remaining = Number(check.amount) - used;
+  const pct = Number(check.amount) > 0 ? (used / Number(check.amount)) * 100 : 0;
+
+  return (
+    <Card className="border-primary/40">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <Badge>صك تمويل</Badge>
+            <h3 className="text-lg font-bold mt-1" dir="ltr">صك رقم {check.check_number}</h3>
+            <p className="text-sm text-muted-foreground">الممول: {check.funders?.name} • الإيداع: {check.cash_accounts?.name} • {formatDate(check.received_date)}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-3 mb-3">
+          <Kpi label="المبلغ" value={formatCurrency(check.amount)} />
+          <Kpi label="المنصرف" value={formatCurrency(used)} tone="warn" />
+          <Kpi label="المتبقي" value={formatCurrency(remaining)} tone={remaining > 0 ? "ok" : "bad"} />
+        </div>
+        <Progress value={pct} className="h-2 mb-3" />
+        <div className="text-xs text-muted-foreground mb-2">{pct.toFixed(1)}% مستهلك</div>
+        {(allocs ?? []).length > 0 && (
+          <Table>
+            <TableHeader><TableRow><TableHead>التاريخ</TableHead><TableHead>المشروع</TableHead><TableHead>الفئة</TableHead><TableHead>الوصف</TableHead><TableHead className="text-left">المبلغ</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {(allocs ?? []).map((a: any, i: number) => (
+                <TableRow key={i}>
+                  <TableCell className="text-sm">{formatDate(a.expenses.expense_date)}</TableCell>
+                  <TableCell><Badge variant="secondary">{a.expenses.projects?.code} — {a.expenses.projects?.name}</Badge></TableCell>
+                  <TableCell className="text-sm">{a.expenses.expense_categories?.name}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{a.expenses.description ?? "—"}</TableCell>
+                  <TableCell className="text-left tabular-nums font-medium">{formatCurrency(a.amount)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ProjectDetails({ project }: { project: any }) {
+  const { data: exp } = useQuery({
+    queryKey: ["tracker-project", project.id],
+    queryFn: async () => (await supabase.from("expenses")
+      .select("id, expense_date, amount, description, expense_categories(name), expense_funding_allocations(amount, funding_checks(check_number, funders(name)))")
+      .eq("project_id", project.id).is("deleted_at", null).order("expense_date", { ascending: false })).data ?? [],
+  });
+  const total = (exp ?? []).reduce((s: number, e: any) => s + Number(e.amount), 0);
+  const byCategory = useMemo(() => {
+    const m = new Map<string, number>();
+    (exp ?? []).forEach((e: any) => {
+      const k = e.expense_categories?.name ?? "غير محدد";
+      m.set(k, (m.get(k) ?? 0) + Number(e.amount));
+    });
+    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+  }, [exp]);
+
+  return (
+    <Card className="border-primary/40">
+      <CardContent className="p-4">
+        <div className="mb-3">
+          <Badge variant="default">مشروع</Badge>
+          <h3 className="text-lg font-bold mt-1">{project.name} <span className="text-muted-foreground text-sm" dir="ltr">({project.code})</span></h3>
+        </div>
+        <div className="grid grid-cols-3 gap-3 mb-3">
+          <Kpi label="إجمالي المصروفات" value={formatCurrency(total)} tone="warn" />
+          <Kpi label="عدد الحركات" value={String((exp ?? []).length)} />
+          <Kpi label="عدد الفئات" value={String(byCategory.length)} />
+        </div>
+        {byCategory.length > 0 && (
+          <div className="mb-3">
+            <div className="text-sm font-medium mb-2">حسب الفئة</div>
+            <div className="flex flex-wrap gap-2">
+              {byCategory.map(([n, v]) => <Badge key={n} variant="outline">{n}: {formatCurrency(v)}</Badge>)}
+            </div>
+          </div>
+        )}
+        {(exp ?? []).length > 0 && (
+          <Table>
+            <TableHeader><TableRow><TableHead>التاريخ</TableHead><TableHead>الفئة</TableHead><TableHead>الصكوك</TableHead><TableHead>الوصف</TableHead><TableHead className="text-left">المبلغ</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {(exp ?? []).slice(0, 50).map((e: any) => (
+                <TableRow key={e.id}>
+                  <TableCell className="text-sm">{formatDate(e.expense_date)}</TableCell>
+                  <TableCell className="text-sm">{e.expense_categories?.name}</TableCell>
+                  <TableCell className="text-xs" dir="ltr">{(e.expense_funding_allocations ?? []).map((a: any) => a.funding_checks?.check_number).join("، ")}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{e.description ?? "—"}</TableCell>
+                  <TableCell className="text-left tabular-nums font-medium">{formatCurrency(e.amount)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Kpi({ label, value, tone }: { label: string; value: string; tone?: "ok" | "warn" | "bad" }) {
+  const cls = tone === "ok" ? "text-success" : tone === "bad" ? "text-destructive" : tone === "warn" ? "text-primary" : "";
+  return (
+    <div className="rounded-md border p-3">
+      <div className="text-xs text-muted-foreground mb-1">{label}</div>
+      <div className={`text-lg font-bold tabular-nums ${cls}`}>{value}</div>
     </div>
   );
 }

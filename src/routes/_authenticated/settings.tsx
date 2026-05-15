@@ -1,6 +1,8 @@
+import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,7 +38,7 @@ function SettingsPage() {
         <TabsContent value="users"><UsersPanel canManage={can("users.manage")} /></TabsContent>
         <TabsContent value="cash"><CashAccountsPanel canManage={can("cash.manage")} /></TabsContent>
         <TabsContent value="categories"><CategoriesPanel canManage={can("categories.manage")} /></TabsContent>
-        <TabsContent value="permissions"><PermissionsPanel /></TabsContent>
+        <TabsContent value="permissions"><PermissionsPanel canManage={can("users.manage")} /></TabsContent>
       </Tabs>
     </div>
   );
@@ -263,8 +265,9 @@ function CategoriesPanel({ canManage }: { canManage: boolean }) {
   );
 }
 
-/* ---------- Roles & Permissions (read-only matrix) ---------- */
-function PermissionsPanel() {
+/* ---------- Roles & Permissions (writable matrix) ---------- */
+function PermissionsPanel({ canManage }: { canManage: boolean }) {
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["roles-perms-matrix"],
     queryFn: async () => {
@@ -277,30 +280,58 @@ function PermissionsPanel() {
       return { roles: roles ?? [], perms: perms ?? [], set };
     },
   });
+
+  async function toggle(role: any, permId: string, on: boolean) {
+    if (!canManage) return;
+    if (role.code === "admin") return toast.error("لا يمكن تعديل صلاحيات المدير");
+    if (on) {
+      const { error } = await supabase.from("role_permissions").insert({ role_id: role.id, permission_id: permId });
+      if (error) return toast.error("فشل التحديث", { description: error.message });
+    } else {
+      const { error } = await supabase.from("role_permissions").delete().eq("role_id", role.id).eq("permission_id", permId);
+      if (error) return toast.error("فشل التحديث", { description: error.message });
+    }
+    qc.invalidateQueries({ queryKey: ["roles-perms-matrix"] });
+  }
+
   if (isLoading || !data) return <LoadingState />;
   const modules = Array.from(new Set(data.perms.map((p: any) => p.module)));
   return (
     <Card><CardContent className="p-4 overflow-x-auto">
+      {!canManage && <p className="text-sm text-muted-foreground mb-3">للقراءة فقط — يحتاج صلاحية إدارة المستخدمين للتعديل</p>}
       <Table>
         <TableHeader><TableRow>
           <TableHead className="min-w-32">الصلاحية</TableHead>
-          {data.roles.map((r: any) => <TableHead key={r.id} className="text-center">{r.name}</TableHead>)}
+          {data.roles.map((r: any) => (
+            <TableHead key={r.id} className="text-center">
+              {r.name}
+              {r.code === "admin" && <div className="text-[10px] text-muted-foreground">مغلق</div>}
+            </TableHead>
+          ))}
         </TableRow></TableHeader>
         <TableBody>
           {modules.map((m: string) => (
-            <>
-              <TableRow key={m}><TableCell colSpan={data.roles.length + 1} className="bg-muted/50 font-bold text-sm">{m}</TableCell></TableRow>
+            <React.Fragment key={m}>
+              <TableRow><TableCell colSpan={data.roles.length + 1} className="bg-muted/50 font-bold text-sm">{m}</TableCell></TableRow>
               {data.perms.filter((p: any) => p.module === m).map((p: any) => (
                 <TableRow key={p.id}>
                   <TableCell className="text-sm"><div className="font-medium">{p.name}</div><div className="text-xs text-muted-foreground" dir="ltr">{p.code}</div></TableCell>
-                  {data.roles.map((r: any) => (
-                    <TableCell key={r.id} className="text-center">
-                      {data.set.has(`${r.id}:${p.id}`) ? <span className="text-primary font-bold">✓</span> : <span className="text-muted-foreground/40">—</span>}
-                    </TableCell>
-                  ))}
+                  {data.roles.map((r: any) => {
+                    const checked = data.set.has(`${r.id}:${p.id}`);
+                    const locked = r.code === "admin" || !canManage;
+                    return (
+                      <TableCell key={r.id} className="text-center">
+                        <Checkbox
+                          checked={checked}
+                          disabled={locked}
+                          onCheckedChange={(v) => toggle(r, p.id, !!v)}
+                        />
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               ))}
-            </>
+            </React.Fragment>
           ))}
         </TableBody>
       </Table>
