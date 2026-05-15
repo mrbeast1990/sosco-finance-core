@@ -180,7 +180,7 @@ function ExpensesPage() {
                             <SelectTrigger><SelectValue placeholder="اختر صك تمويل" /></SelectTrigger>
                             <SelectContent>{(checks ?? []).map((x: any) => {
                               const r = Number(x.amount) - (spentMap?.[x.id] ?? 0);
-                              return <SelectItem key={x.id} value={x.id}>صك {x.check_number} — {x.funders?.name} — متبقي {formatCurrency(r)}</SelectItem>;
+                              return <SelectItem key={x.id} value={x.id}>صك {x.check_number} — {x.funders?.name} — {x.cash_accounts?.name} — متبقي {formatCurrency(r)}</SelectItem>;
                             })}</SelectContent>
                           </Select>
                           {c && <div className="text-[11px] text-muted-foreground mt-1">المتبقي: <span className="tabular-nums">{formatCurrency(rem)}</span></div>}
