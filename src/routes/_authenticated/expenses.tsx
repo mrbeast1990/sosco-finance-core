@@ -289,11 +289,18 @@ function ExpensesPage() {
                     <TableCell className="text-muted-foreground text-sm max-w-[240px] truncate">{e.description ?? "—"}</TableCell>
                     <TableCell className="text-left font-medium tabular-nums">{formatCurrency(e.amount)}</TableCell>
                     <TableCell>
-                      {e.attachment_url && (
-                        <Button size="sm" variant="ghost" onClick={() => downloadAttachment(e.attachment_url)}>
-                          <Paperclip className="size-3.5" />
-                        </Button>
-                      )}
+                      <div className="flex gap-1">
+                        {e.attachment_url && (
+                          <Button size="sm" variant="ghost" onClick={() => downloadAttachment(e.attachment_url)} title="مرفق">
+                            <Paperclip className="size-3.5" />
+                          </Button>
+                        )}
+                        {e.excel_attachment_url && (
+                          <Button size="sm" variant="ghost" onClick={() => downloadAttachment(e.excel_attachment_url)} title="ملف Excel">
+                            <FileSpreadsheet className="size-3.5 text-success" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
