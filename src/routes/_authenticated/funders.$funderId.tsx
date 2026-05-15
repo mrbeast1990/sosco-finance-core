@@ -376,6 +376,8 @@ function FunderProfile() {
                   <Input required value={form.check_number} onChange={(e) => setForm({ ...form, check_number: e.target.value })} dir="ltr" /></div>
                 <div className="space-y-2"><Label>المبلغ (د.ل)</Label>
                   <Input required type="number" step="0.01" min={used || 0.01} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" /></div>
+                <div className="space-y-2"><Label>المبلغ بالدولار (اختياري)</Label>
+                  <Input type="number" step="0.01" min="0" placeholder="USD" value={form.amount_usd} onChange={(e) => setForm({ ...form, amount_usd: e.target.value })} dir="ltr" /></div>
                 <div className="space-y-2"><Label>حساب الإيداع</Label>
                   <Select value={form.cash_account_id} onValueChange={(v) => setForm({ ...form, cash_account_id: v })} disabled={used > 0}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -384,6 +386,14 @@ function FunderProfile() {
                 </div>
                 <div className="space-y-2"><Label>تاريخ الاستلام</Label>
                   <Input required type="date" value={form.received_date} onChange={(e) => setForm({ ...form, received_date: e.target.value })} /></div>
+                <div className="space-y-2"><Label>صورة الصك (اختياري)</Label>
+                  <Input type="file" accept="image/*,application/pdf" onChange={(e) => setEditFile(e.target.files?.[0] ?? null)} />
+                  {editing.attachment_url && !editFile && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => downloadAttachment(editing.attachment_url)}>
+                      <Paperclip className="size-3.5" /> عرض المرفق الحالي
+                    </Button>
+                  )}
+                </div>
                 <div className="space-y-2"><Label>ملاحظات</Label>
                   <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
                 <DialogFooter><Button type="submit">حفظ التعديلات</Button></DialogFooter>
