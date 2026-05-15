@@ -118,6 +118,54 @@ function FunderProfile() {
     qc.invalidateQueries({ queryKey: ["funder-checks", funderId] });
   }
 
+  function openEdit(c: any) {
+    setEditing(c);
+    setForm({
+      check_number: c.check_number,
+      amount: String(c.amount),
+      cash_account_id: c.cash_account_id,
+      received_date: c.received_date,
+      notes: c.notes ?? "",
+    });
+  }
+
+  async function onSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editing) return;
+    const used = usedByCheck.get(editing.id) ?? 0;
+    const newAmount = Number(form.amount);
+    if (used > 0 && newAmount < used) {
+      return toast.error("لا يمكن تخفيض المبلغ تحت المستهلك", { description: `المستهلك: ${used}` });
+    }
+    const patch: any = {
+      check_number: form.check_number,
+      amount: newAmount,
+      received_date: form.received_date,
+      notes: form.notes || null,
+    };
+    if (used === 0) patch.cash_account_id = form.cash_account_id;
+    const { error } = await supabase.from("funding_checks").update(patch).eq("id", editing.id);
+    if (error) return toast.error("فشل التعديل", { description: error.message });
+    toast.success("تم تحديث الصك");
+    setEditing(null);
+    qc.invalidateQueries({ queryKey: ["funder-checks", funderId] });
+  }
+
+  async function onConfirmDelete() {
+    if (!deleting) return;
+    const used = usedByCheck.get(deleting.id) ?? 0;
+    if (used > 0) {
+      toast.error("لا يمكن حذف صك مستهلك جزئياً", { description: `المستهلك: ${used}` });
+      setDeleting(null);
+      return;
+    }
+    const { error } = await supabase.from("funding_checks").update({ deleted_at: new Date().toISOString() }).eq("id", deleting.id);
+    if (error) return toast.error("فشل الحذف", { description: error.message });
+    toast.success("تم حذف الصك");
+    setDeleting(null);
+    qc.invalidateQueries({ queryKey: ["funder-checks", funderId] });
+  }
+
   if (isLoading) return <LoadingState />;
   if (!funder) return <EmptyState title="الممول غير موجود" />;
 
