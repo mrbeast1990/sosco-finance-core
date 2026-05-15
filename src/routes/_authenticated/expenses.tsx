@@ -228,8 +228,12 @@ function ExpensesPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label>التاريخ</Label>
                     <Input required type="date" value={form.expense_date} onChange={(e) => setForm({ ...form, expense_date: e.target.value })} /></div>
-                  <div className="space-y-2"><Label>المرفق (اختياري)</Label>
+                  <div className="space-y-2"><Label>مرفق صورة/PDF (اختياري)</Label>
                     <Input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></div>
+                </div>
+                <div className="space-y-2"><Label>مرفق Excel (اختياري)</Label>
+                  <Input type="file" accept=".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => setExcelFile(e.target.files?.[0] ?? null)} />
+                  {excelFile && <p className="text-xs text-muted-foreground">{excelFile.name}</p>}
                 </div>
                 <div className="space-y-2"><Label>الوصف</Label>
                   <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
