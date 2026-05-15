@@ -157,15 +157,8 @@ function ExpensesPage() {
                       <SelectContent>{(cats ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                     </Select></div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2"><Label>حساب الدفع</Label>
-                    <Select value={form.payment_account_id} onValueChange={(v) => setForm({ ...form, payment_account_id: v })} required>
-                      <SelectTrigger><SelectValue placeholder="اختر حساب الصندوق/البنك" /></SelectTrigger>
-                      <SelectContent>{(cashAccounts ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                    </Select></div>
-                  <div className="space-y-2"><Label>المبلغ الإجمالي (د.ل)</Label>
-                    <Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" />
-                  </div>
+                <div className="space-y-2"><Label>المبلغ الإجمالي (د.ل)</Label>
+                  <Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" />
                 </div>
 
                 <div className="space-y-2 rounded-md border p-3">
