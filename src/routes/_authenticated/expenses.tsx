@@ -106,11 +106,18 @@ function ExpensesPage() {
     setBusy(true);
     try {
       let attachment_url: string | null = null;
+      let excel_attachment_url: string | null = null;
       if (file) {
         const path = `${user!.id}/${Date.now()}-${file.name}`;
         const up = await supabase.storage.from("expense-attachments").upload(path, file);
         if (up.error) throw up.error;
         attachment_url = up.data.path;
+      }
+      if (excelFile) {
+        const path = `${user!.id}/excel-${Date.now()}-${excelFile.name}`;
+        const up = await supabase.storage.from("expense-attachments").upload(path, excelFile);
+        if (up.error) throw up.error;
+        excel_attachment_url = up.data.path;
       }
       const { error } = await supabase.rpc("create_expense_atomic", {
         _project_id: form.project_id,
@@ -120,7 +127,8 @@ function ExpensesPage() {
         _description: form.description || "",
         _attachment_url: attachment_url ?? "",
         _allocations: allocations.map((a) => ({ funding_check_id: a.funding_check_id, amount: Number(a.amount) })),
-      });
+        _excel_attachment_url: excel_attachment_url,
+      } as any);
       if (error) throw error;
       toast.success("تم تسجيل المصروف", { description: "تم إنشاء قيد محاسبي وتخصيصات التمويل" });
       setOpen(false);
