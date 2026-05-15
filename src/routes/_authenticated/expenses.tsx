@@ -202,6 +202,19 @@ function ExpensesPage() {
                   </div>
                 </div>
 
+                {cashSummary.length > 0 && (
+                  <div className="rounded-md bg-muted/40 border p-3 text-sm">
+                    <div className="font-medium mb-1 text-foreground">سيتم الصرف من:</div>
+                    <ul className="space-y-1">
+                      {cashSummary.map(([name, amt]) => (
+                        <li key={name} className="flex justify-between text-muted-foreground">
+                          <span>{name}</span>
+                          <span className="tabular-nums font-medium text-foreground">{formatCurrency(amt)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label>التاريخ</Label>
                     <Input required type="date" value={form.expense_date} onChange={(e) => setForm({ ...form, expense_date: e.target.value })} /></div>
