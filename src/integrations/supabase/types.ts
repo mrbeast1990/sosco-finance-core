@@ -52,31 +52,142 @@ export type Database = {
           },
         ]
       }
+      audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          payload: Json | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          payload?: Json | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          payload?: Json | null
+        }
+        Relationships: []
+      }
+      cash_accounts: {
+        Row: {
+          account_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          type: Database["public"]["Enums"]["cash_account_type"]
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          type: Database["public"]["Enums"]["cash_account_type"]
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          type?: Database["public"]["Enums"]["cash_account_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_accounts_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expense_categories: {
         Row: {
-          account_id: string | null
           created_at: string
+          expense_account_id: string
           id: string
           name: string
         }
         Insert: {
-          account_id?: string | null
           created_at?: string
+          expense_account_id: string
           id?: string
           name: string
         }
         Update: {
-          account_id?: string | null
           created_at?: string
+          expense_account_id?: string
           id?: string
           name?: string
         }
         Relationships: [
           {
-            foreignKeyName: "fk_category_account"
-            columns: ["account_id"]
+            foreignKeyName: "expense_categories_account_fk"
+            columns: ["expense_account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_category_account"
+            columns: ["expense_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_funding_allocations: {
+        Row: {
+          amount: number
+          created_at: string
+          expense_id: string
+          funding_check_id: string
+          id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          expense_id: string
+          funding_check_id: string
+          id?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          expense_id?: string
+          funding_check_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_funding_allocations_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_funding_allocations_funding_check_id_fkey"
+            columns: ["funding_check_id"]
+            isOneToOne: false
+            referencedRelation: "funding_checks"
             referencedColumns: ["id"]
           },
         ]
@@ -91,10 +202,12 @@ export type Database = {
           deleted_at: string | null
           description: string | null
           expense_date: string
-          funding_check_id: string
           id: string
           journal_entry_id: string | null
+          payment_account_id: string | null
           project_id: string
+          updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
           amount: number
@@ -105,10 +218,12 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           expense_date?: string
-          funding_check_id: string
           id?: string
           journal_entry_id?: string | null
+          payment_account_id?: string | null
           project_id: string
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
           amount?: number
@@ -119,10 +234,12 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           expense_date?: string
-          funding_check_id?: string
           id?: string
           journal_entry_id?: string | null
+          payment_account_id?: string | null
           project_id?: string
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -133,17 +250,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "expenses_funding_check_id_fkey"
-            columns: ["funding_check_id"]
-            isOneToOne: false
-            referencedRelation: "funding_checks"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "expenses_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
             referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_payment_account_id_fkey"
+            columns: ["payment_account_id"]
+            isOneToOne: false
+            referencedRelation: "cash_accounts"
             referencedColumns: ["id"]
           },
           {
@@ -196,7 +313,6 @@ export type Database = {
           id: string
           notes: string | null
           received_date: string
-          status: Database["public"]["Enums"]["check_status"]
         }
         Insert: {
           amount: number
@@ -208,7 +324,6 @@ export type Database = {
           id?: string
           notes?: string | null
           received_date?: string
-          status?: Database["public"]["Enums"]["check_status"]
         }
         Update: {
           amount?: number
@@ -220,7 +335,6 @@ export type Database = {
           id?: string
           notes?: string | null
           received_date?: string
-          status?: Database["public"]["Enums"]["check_status"]
         }
         Relationships: [
           {
@@ -310,21 +424,54 @@ export type Database = {
           },
         ]
       }
-      profiles: {
+      permissions: {
         Row: {
+          code: string
           created_at: string
-          full_name: string | null
           id: string
+          module: string
+          name: string
         }
         Insert: {
+          code: string
           created_at?: string
-          full_name?: string | null
-          id: string
+          id?: string
+          module: string
+          name: string
         }
         Update: {
+          code?: string
           created_at?: string
+          id?: string
+          module?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          is_active: boolean
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          is_active?: boolean
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
           full_name?: string | null
           id?: string
+          is_active?: boolean
         }
         Relationships: []
       }
@@ -361,46 +508,130 @@ export type Database = {
         }
         Relationships: []
       }
+      role_permissions: {
+        Row: {
+          permission_id: string
+          role_id: string
+        }
+        Insert: {
+          permission_id: string
+          role_id: string
+        }
+        Update: {
+          permission_id?: string
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permissions_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "role_permissions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roles: {
+        Row: {
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          is_system: boolean
+          name: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
           id: string
-          role: Database["public"]["Enums"]["app_role"]
+          role_id: string
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
-          role: Database["public"]["Enums"]["app_role"]
+          role_id: string
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
-          role?: Database["public"]["Enums"]["app_role"]
+          role_id?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      can_write: { Args: never; Returns: boolean }
       check_remaining: { Args: { _check_id: string }; Returns: number }
-      has_role: {
+      create_expense_atomic: {
         Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
+          _allocations: Json
+          _amount: number
+          _attachment_url: string
+          _category_id: string
+          _description: string
+          _expense_date: string
+          _payment_account_id: string
+          _project_id: string
         }
+        Returns: string
+      }
+      has_permission: {
+        Args: { _perm_code: string; _user_id: string }
         Returns: boolean
+      }
+      is_admin: { Args: { _user_id: string }; Returns: boolean }
+      my_permissions: {
+        Args: never
+        Returns: {
+          code: string
+        }[]
+      }
+      reverse_expense_atomic: {
+        Args: { _expense_id: string; _reason: string }
+        Returns: undefined
       }
     }
     Enums: {
       account_type: "asset" | "liability" | "equity" | "revenue" | "expense"
-      app_role: "admin" | "accountant" | "viewer"
-      check_status: "active" | "depleted" | "cancelled"
+      cash_account_type: "cashbox" | "bank" | "field"
       project_status: "active" | "completed" | "on_hold" | "cancelled"
     }
     CompositeTypes: {
@@ -530,8 +761,7 @@ export const Constants = {
   public: {
     Enums: {
       account_type: ["asset", "liability", "equity", "revenue", "expense"],
-      app_role: ["admin", "accountant", "viewer"],
-      check_status: ["active", "depleted", "cancelled"],
+      cash_account_type: ["cashbox", "bank", "field"],
       project_status: ["active", "completed", "on_hold", "cancelled"],
     },
   },
