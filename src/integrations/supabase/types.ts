@@ -201,6 +201,7 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           description: string | null
+          excel_attachment_url: string | null
           expense_date: string
           id: string
           journal_entry_id: string | null
@@ -216,6 +217,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           description?: string | null
+          excel_attachment_url?: string | null
           expense_date?: string
           id?: string
           journal_entry_id?: string | null
@@ -231,6 +233,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           description?: string | null
+          excel_attachment_url?: string | null
           expense_date?: string
           id?: string
           journal_entry_id?: string | null
@@ -268,27 +271,33 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           id: string
+          is_project: boolean
           name: string
           notes: string | null
           phone: string | null
+          project_code: string | null
         }
         Insert: {
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
           id?: string
+          is_project?: boolean
           name: string
           notes?: string | null
           phone?: string | null
+          project_code?: string | null
         }
         Update: {
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
           id?: string
+          is_project?: boolean
           name?: string
           notes?: string | null
           phone?: string | null
+          project_code?: string | null
         }
         Relationships: []
       }
@@ -600,18 +609,32 @@ export type Database = {
     }
     Functions: {
       check_remaining: { Args: { _check_id: string }; Returns: number }
-      create_expense_atomic: {
-        Args: {
-          _allocations: Json
-          _amount: number
-          _attachment_url: string
-          _category_id: string
-          _description: string
-          _expense_date: string
-          _project_id: string
-        }
-        Returns: string
-      }
+      create_expense_atomic:
+        | {
+            Args: {
+              _allocations: Json
+              _amount: number
+              _attachment_url: string
+              _category_id: string
+              _description: string
+              _expense_date: string
+              _project_id: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              _allocations: Json
+              _amount: number
+              _attachment_url: string
+              _category_id: string
+              _description: string
+              _excel_attachment_url?: string
+              _expense_date: string
+              _project_id: string
+            }
+            Returns: string
+          }
       has_permission: {
         Args: { _perm_code: string; _user_id: string }
         Returns: boolean
