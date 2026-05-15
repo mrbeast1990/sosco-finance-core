@@ -359,6 +359,41 @@ function ExpensesPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!editingExp} onOpenChange={(o) => !o && setEditingExp(null)}>
+        <DialogContent dir="rtl">
+          <DialogHeader><DialogTitle>تعديل المصروف</DialogTitle></DialogHeader>
+          <form onSubmit={onSaveEditExp} className="space-y-4">
+            <div className="rounded-md bg-muted/40 border p-2 text-xs text-muted-foreground">
+              للحفاظ على سلامة القيود المحاسبية، يمكن تعديل التاريخ والوصف فقط. لتغيير المبلغ أو التخصيصات، اعكس المصروف وأنشئ مصروفاً جديداً.
+            </div>
+            <div className="space-y-2"><Label>التاريخ</Label>
+              <Input required type="date" value={editForm.expense_date} onChange={(ev) => setEditForm({ ...editForm, expense_date: ev.target.value })} /></div>
+            <div className="space-y-2"><Label>الوصف</Label>
+              <Textarea value={editForm.description} onChange={(ev) => setEditForm({ ...editForm, description: ev.target.value })} /></div>
+            <DialogFooter><Button type="submit">حفظ</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!reversing} onOpenChange={(o) => !o && (setReversing(null), setReverseReason(""))}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>عكس/حذف مصروف</AlertDialogTitle>
+            <AlertDialogDescription>
+              سيتم حذف المصروف ({reversing && formatCurrency(reversing.amount)}) وإنشاء قيد عكسي يستعيد المبلغ إلى حساب الصرف. لا يمكن التراجع.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label>سبب العكس</Label>
+            <Textarea value={reverseReason} onChange={(ev) => setReverseReason(ev.target.value)} placeholder="مثال: خطأ في التسجيل" />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirmReverse} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">تأكيد العكس</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
