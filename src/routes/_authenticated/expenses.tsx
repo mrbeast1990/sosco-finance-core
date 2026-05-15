@@ -266,7 +266,9 @@ function ExpensesPage() {
                     <TableCell className="text-sm text-muted-foreground">{formatDate(e.expense_date)}</TableCell>
                     <TableCell><div className="font-medium">{e.projects?.name}</div><div className="text-xs text-muted-foreground tabular-nums" dir="ltr">{e.projects?.code}</div></TableCell>
                     <TableCell>{e.expense_categories?.name}</TableCell>
-                    <TableCell>{e.cash_accounts?.name ?? "—"}</TableCell>
+                    <TableCell className="text-xs">
+                      {Array.from(new Set((e.expense_funding_allocations ?? []).map((a: any) => a.funding_checks?.cash_accounts?.name).filter(Boolean))).join("، ") || "—"}
+                    </TableCell>
                     <TableCell className="tabular-nums text-xs" dir="ltr">
                       {(e.expense_funding_allocations ?? []).map((a: any) => a.funding_checks?.check_number).filter(Boolean).join("، ") || "—"}
                     </TableCell>
