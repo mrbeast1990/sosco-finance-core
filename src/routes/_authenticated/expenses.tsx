@@ -181,9 +181,9 @@ function ExpensesPage() {
   }
 
   async function downloadAttachment(path: string) {
-    const { data, error } = await supabase.storage.from("expense-attachments").createSignedUrl(path, 60);
-    if (error || !data) return toast.error("فشل تحميل المرفق");
-    window.open(data.signedUrl, "_blank");
+    const res = await supabase.storage.from("expense-attachments").createSignedUrl(path, 60);
+    if (res.error || !res.data) return toast.error("فشل تحميل المرفق");
+    window.open(res.data.signedUrl, "_blank");
   }
 
   return (
