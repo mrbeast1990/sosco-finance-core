@@ -271,8 +271,9 @@ function FunderProfile() {
               <Table>
                 <TableHeader><TableRow>
                   <TableHead>رقم الصك</TableHead><TableHead>حساب الإيداع</TableHead><TableHead>تاريخ الاستلام</TableHead>
-                  <TableHead>المبلغ</TableHead><TableHead>المستخدم</TableHead>
+                  <TableHead>المبلغ</TableHead><TableHead>USD</TableHead><TableHead>المستخدم</TableHead>
                   <TableHead>المتبقي</TableHead><TableHead className="w-48">نسبة الاستهلاك</TableHead>
+                  <TableHead className="w-12">المرفق</TableHead>
                   {(canEditCheck || canDeleteCheck) && <TableHead className="w-24"></TableHead>}
                 </TableRow></TableHeader>
                 <TableBody>
@@ -286,9 +287,17 @@ function FunderProfile() {
                         <TableCell><Badge variant="outline">{c.cash_accounts?.name ?? "—"}</Badge></TableCell>
                         <TableCell>{formatDate(c.received_date)}</TableCell>
                         <TableCell className="tabular-nums">{formatCurrency(Number(c.amount))}</TableCell>
+                        <TableCell className="tabular-nums text-muted-foreground" dir="ltr">{c.amount_usd != null ? `$${Number(c.amount_usd).toLocaleString()}` : "—"}</TableCell>
                         <TableCell className="tabular-nums text-muted-foreground">{formatCurrency(used)}</TableCell>
                         <TableCell className={`tabular-nums font-semibold ${remaining <= 0 ? "text-destructive" : "text-primary"}`}>{formatCurrency(remaining)}</TableCell>
                         <TableCell><Progress value={pct} className="h-2" /><span className="text-xs text-muted-foreground">{pct.toFixed(1)}%</span></TableCell>
+                        <TableCell>
+                          {c.attachment_url ? (
+                            <Button size="icon" variant="ghost" onClick={() => downloadAttachment(c.attachment_url)} title="عرض المرفق">
+                              <Paperclip className="size-3.5" />
+                            </Button>
+                          ) : <span className="text-muted-foreground text-xs">—</span>}
+                        </TableCell>
                         {(canEditCheck || canDeleteCheck) && (
                           <TableCell>
                             <div className="flex gap-1">
