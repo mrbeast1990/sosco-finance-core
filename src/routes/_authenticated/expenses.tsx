@@ -31,7 +31,7 @@ function ExpensesPage() {
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [form, setForm] = useState({
-    project_id: "", category_id: "", payment_account_id: "",
+    project_id: "", category_id: "",
     amount: "", expense_date: new Date().toISOString().slice(0, 10), description: "",
   });
   const [allocations, setAllocations] = useState<Allocation[]>([{ funding_check_id: "", amount: "" }]);
@@ -40,10 +40,10 @@ function ExpensesPage() {
     queryFn: async () => (await supabase.from("projects").select("id,name,code").is("deleted_at", null)).data ?? [] });
   const { data: cats } = useQuery({ queryKey: ["cats-sel"],
     queryFn: async () => (await supabase.from("expense_categories").select("id,name").order("name")).data ?? [] });
-  const { data: cashAccounts } = useQuery({ queryKey: ["cash-sel"],
-    queryFn: async () => (await supabase.from("cash_accounts").select("id,name,type").eq("is_active", true).order("name")).data ?? [] });
   const { data: checks } = useQuery({ queryKey: ["checks-sel"],
-    queryFn: async () => (await supabase.from("funding_checks").select("id, check_number, amount, funders(name)").is("deleted_at", null)).data ?? [] });
+    queryFn: async () => (await supabase.from("funding_checks")
+      .select("id, check_number, amount, cash_account_id, funders(name), cash_accounts(name)")
+      .is("deleted_at", null)).data ?? [] });
   const { data: spentMap } = useQuery({ queryKey: ["spent-map"],
     queryFn: async () => {
       const { data } = await supabase.from("expense_funding_allocations")
@@ -59,7 +59,7 @@ function ExpensesPage() {
     queryKey: ["expenses"],
     queryFn: async () => {
       const { data, error } = await supabase.from("expenses")
-        .select("*, projects(name, code), expense_categories(name), cash_accounts(name), expense_funding_allocations(amount, funding_checks(check_number))")
+        .select("*, projects(name, code), expense_categories(name), expense_funding_allocations(amount, funding_checks(check_number, cash_accounts(name)))")
         .is("deleted_at", null).order("expense_date", { ascending: false }).limit(500);
       if (error) throw error;
       return data;
@@ -77,12 +77,25 @@ function ExpensesPage() {
   const allocMismatch = amountNum > 0 && Math.round(allocTotal * 100) !== Math.round(amountNum * 100);
 
   function openNew() {
-    setForm({ project_id: "", category_id: "", payment_account_id: "", amount: "",
+    setForm({ project_id: "", category_id: "", amount: "",
       expense_date: new Date().toISOString().slice(0, 10), description: "" });
     setAllocations([{ funding_check_id: "", amount: "" }]);
     setFile(null);
     setOpen(true);
   }
+
+  // Auto-derived: which cash accounts will be debited and by how much
+  const cashSummary = useMemo(() => {
+    const m = new Map<string, number>();
+    allocations.forEach((a) => {
+      if (!a.funding_check_id || !a.amount) return;
+      const c = (checks ?? []).find((x: any) => x.id === a.funding_check_id);
+      const name = c?.cash_accounts?.name;
+      if (!name) return;
+      m.set(name, (m.get(name) ?? 0) + Number(a.amount));
+    });
+    return Array.from(m.entries());
+  }, [allocations, checks]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -100,7 +113,6 @@ function ExpensesPage() {
       const { error } = await supabase.rpc("create_expense_atomic", {
         _project_id: form.project_id,
         _category_id: form.category_id,
-        _payment_account_id: form.payment_account_id,
         _amount: Number(form.amount),
         _expense_date: form.expense_date,
         _description: form.description || "",
@@ -145,15 +157,8 @@ function ExpensesPage() {
                       <SelectContent>{(cats ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                     </Select></div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2"><Label>حساب الدفع</Label>
-                    <Select value={form.payment_account_id} onValueChange={(v) => setForm({ ...form, payment_account_id: v })} required>
-                      <SelectTrigger><SelectValue placeholder="اختر حساب الصندوق/البنك" /></SelectTrigger>
-                      <SelectContent>{(cashAccounts ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                    </Select></div>
-                  <div className="space-y-2"><Label>المبلغ الإجمالي (د.ل)</Label>
-                    <Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" />
-                  </div>
+                <div className="space-y-2"><Label>المبلغ الإجمالي (د.ل)</Label>
+                  <Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" />
                 </div>
 
                 <div className="space-y-2 rounded-md border p-3">
@@ -175,7 +180,7 @@ function ExpensesPage() {
                             <SelectTrigger><SelectValue placeholder="اختر صك تمويل" /></SelectTrigger>
                             <SelectContent>{(checks ?? []).map((x: any) => {
                               const r = Number(x.amount) - (spentMap?.[x.id] ?? 0);
-                              return <SelectItem key={x.id} value={x.id}>صك {x.check_number} — {x.funders?.name} — متبقي {formatCurrency(r)}</SelectItem>;
+                              return <SelectItem key={x.id} value={x.id}>صك {x.check_number} — {x.funders?.name} — {x.cash_accounts?.name} — متبقي {formatCurrency(r)}</SelectItem>;
                             })}</SelectContent>
                           </Select>
                           {c && <div className="text-[11px] text-muted-foreground mt-1">المتبقي: <span className="tabular-nums">{formatCurrency(rem)}</span></div>}
@@ -197,6 +202,19 @@ function ExpensesPage() {
                   </div>
                 </div>
 
+                {cashSummary.length > 0 && (
+                  <div className="rounded-md bg-muted/40 border p-3 text-sm">
+                    <div className="font-medium mb-1 text-foreground">سيتم الصرف من:</div>
+                    <ul className="space-y-1">
+                      {cashSummary.map(([name, amt]) => (
+                        <li key={name} className="flex justify-between text-muted-foreground">
+                          <span>{name}</span>
+                          <span className="tabular-nums font-medium text-foreground">{formatCurrency(amt)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label>التاريخ</Label>
                     <Input required type="date" value={form.expense_date} onChange={(e) => setForm({ ...form, expense_date: e.target.value })} /></div>
@@ -248,7 +266,9 @@ function ExpensesPage() {
                     <TableCell className="text-sm text-muted-foreground">{formatDate(e.expense_date)}</TableCell>
                     <TableCell><div className="font-medium">{e.projects?.name}</div><div className="text-xs text-muted-foreground tabular-nums" dir="ltr">{e.projects?.code}</div></TableCell>
                     <TableCell>{e.expense_categories?.name}</TableCell>
-                    <TableCell>{e.cash_accounts?.name ?? "—"}</TableCell>
+                    <TableCell className="text-xs">
+                      {Array.from(new Set((e.expense_funding_allocations ?? []).map((a: any) => a.funding_checks?.cash_accounts?.name).filter(Boolean))).join("، ") || "—"}
+                    </TableCell>
                     <TableCell className="tabular-nums text-xs" dir="ltr">
                       {(e.expense_funding_allocations ?? []).map((a: any) => a.funding_checks?.check_number).filter(Boolean).join("، ") || "—"}
                     </TableCell>

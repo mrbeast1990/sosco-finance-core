@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, Plus, Phone, Wallet, Receipt, FolderKanban } from "lucide-react";
@@ -27,7 +28,10 @@ function FunderProfile() {
   const { can } = useAuth();
   const canCreateCheck = can("funding.create");
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ check_number: "", amount: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
+  const [form, setForm] = useState({ check_number: "", amount: "", cash_account_id: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
+
+  const { data: cashAccounts } = useQuery({ queryKey: ["cash-active"],
+    queryFn: async () => (await supabase.from("cash_accounts").select("id,name,type").eq("is_active", true).order("name")).data ?? [] });
 
   const { data: funder, isLoading } = useQuery({
     queryKey: ["funder", funderId],
@@ -40,7 +44,7 @@ function FunderProfile() {
 
   const { data: checks } = useQuery({
     queryKey: ["funder-checks", funderId],
-    queryFn: async () => (await supabase.from("funding_checks").select("*").eq("funder_id", funderId).is("deleted_at", null).order("received_date", { ascending: false })).data ?? [],
+    queryFn: async () => (await supabase.from("funding_checks").select("*, cash_accounts(name)").eq("funder_id", funderId).is("deleted_at", null).order("received_date", { ascending: false })).data ?? [],
   });
 
   const checkIds = useMemo(() => (checks ?? []).map((c) => c.id), [checks]);
@@ -93,17 +97,19 @@ function FunderProfile() {
 
   async function onCreateCheck(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.cash_account_id) return toast.error("اختر حساب الإيداع");
     const { error } = await supabase.from("funding_checks").insert({
       funder_id: funderId,
       check_number: form.check_number,
       amount: Number(form.amount),
+      cash_account_id: form.cash_account_id,
       received_date: form.received_date,
       notes: form.notes || null,
     });
     if (error) return toast.error("فشل الحفظ", { description: error.message });
     toast.success("تمت إضافة الصك");
     setOpen(false);
-    setForm({ check_number: "", amount: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
+    setForm({ check_number: "", amount: "", cash_account_id: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
     qc.invalidateQueries({ queryKey: ["funder-checks", funderId] });
   }
 
@@ -128,6 +134,13 @@ function FunderProfile() {
                       <Input required value={form.check_number} onChange={(e) => setForm({ ...form, check_number: e.target.value })} dir="ltr" /></div>
                     <div className="space-y-2"><Label>المبلغ (د.ل)</Label>
                       <Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" /></div>
+                    <div className="space-y-2"><Label>حساب الإيداع (الصندوق/البنك)</Label>
+                      <Select value={form.cash_account_id} onValueChange={(v) => setForm({ ...form, cash_account_id: v })} required>
+                        <SelectTrigger><SelectValue placeholder="اختر الحساب الذي أُودع فيه الصك" /></SelectTrigger>
+                        <SelectContent>{(cashAccounts ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground">سيتم سحب المصروفات من هذا الحساب عند تخصيص الصك.</p>
+                    </div>
                     <div className="space-y-2"><Label>تاريخ الاستلام</Label>
                       <Input required type="date" value={form.received_date} onChange={(e) => setForm({ ...form, received_date: e.target.value })} /></div>
                     <div className="space-y-2"><Label>ملاحظات</Label>
@@ -160,18 +173,19 @@ function FunderProfile() {
             {(checks ?? []).length === 0 ? <EmptyState title="لا توجد صكوك" /> : (
               <Table>
                 <TableHeader><TableRow>
-                  <TableHead>رقم الصك</TableHead><TableHead>تاريخ الاستلام</TableHead>
+                  <TableHead>رقم الصك</TableHead><TableHead>حساب الإيداع</TableHead><TableHead>تاريخ الاستلام</TableHead>
                   <TableHead>المبلغ</TableHead><TableHead>المستخدم</TableHead>
                   <TableHead>المتبقي</TableHead><TableHead className="w-48">نسبة الاستهلاك</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
-                  {(checks ?? []).map((c) => {
+                  {(checks ?? []).map((c: any) => {
                     const used = usedByCheck.get(c.id) ?? 0;
                     const remaining = Number(c.amount) - used;
                     const pct = Number(c.amount) > 0 ? (used / Number(c.amount)) * 100 : 0;
                     return (
                       <TableRow key={c.id}>
                         <TableCell className="font-medium" dir="ltr">{c.check_number}</TableCell>
+                        <TableCell><Badge variant="outline">{c.cash_accounts?.name ?? "—"}</Badge></TableCell>
                         <TableCell>{formatDate(c.received_date)}</TableCell>
                         <TableCell className="tabular-nums">{formatCurrency(Number(c.amount))}</TableCell>
                         <TableCell className="tabular-nums text-muted-foreground">{formatCurrency(used)}</TableCell>
