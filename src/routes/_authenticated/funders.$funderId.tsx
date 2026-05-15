@@ -173,18 +173,19 @@ function FunderProfile() {
             {(checks ?? []).length === 0 ? <EmptyState title="لا توجد صكوك" /> : (
               <Table>
                 <TableHeader><TableRow>
-                  <TableHead>رقم الصك</TableHead><TableHead>تاريخ الاستلام</TableHead>
+                  <TableHead>رقم الصك</TableHead><TableHead>حساب الإيداع</TableHead><TableHead>تاريخ الاستلام</TableHead>
                   <TableHead>المبلغ</TableHead><TableHead>المستخدم</TableHead>
                   <TableHead>المتبقي</TableHead><TableHead className="w-48">نسبة الاستهلاك</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
-                  {(checks ?? []).map((c) => {
+                  {(checks ?? []).map((c: any) => {
                     const used = usedByCheck.get(c.id) ?? 0;
                     const remaining = Number(c.amount) - used;
                     const pct = Number(c.amount) > 0 ? (used / Number(c.amount)) * 100 : 0;
                     return (
                       <TableRow key={c.id}>
                         <TableCell className="font-medium" dir="ltr">{c.check_number}</TableCell>
+                        <TableCell><Badge variant="outline">{c.cash_accounts?.name ?? "—"}</Badge></TableCell>
                         <TableCell>{formatDate(c.received_date)}</TableCell>
                         <TableCell className="tabular-nums">{formatCurrency(Number(c.amount))}</TableCell>
                         <TableCell className="tabular-nums text-muted-foreground">{formatCurrency(used)}</TableCell>
