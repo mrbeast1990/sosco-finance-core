@@ -304,6 +304,8 @@ export type Database = {
       funding_checks: {
         Row: {
           amount: number
+          amount_usd: number | null
+          attachment_url: string | null
           cash_account_id: string
           check_number: string
           created_at: string
@@ -316,6 +318,8 @@ export type Database = {
         }
         Insert: {
           amount: number
+          amount_usd?: number | null
+          attachment_url?: string | null
           cash_account_id: string
           check_number: string
           created_at?: string
@@ -328,6 +332,8 @@ export type Database = {
         }
         Update: {
           amount?: number
+          amount_usd?: number | null
+          attachment_url?: string | null
           cash_account_id?: string
           check_number?: string
           created_at?: string

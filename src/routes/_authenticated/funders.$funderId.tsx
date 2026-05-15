@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Plus, FolderKanban, Wallet, Receipt, Hash, Pencil, Trash2 } from "lucide-react";
+import { ArrowRight, Plus, FolderKanban, Wallet, Receipt, Hash, Pencil, Trash2, Paperclip } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -26,14 +26,17 @@ export const Route = createFileRoute("/_authenticated/funders/$funderId")({ comp
 function FunderProfile() {
   const { funderId } = Route.useParams();
   const qc = useQueryClient();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const canCreateCheck = can("funding.create");
   const canEditCheck = can("funding.edit");
   const canDeleteCheck = can("funding.delete");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<any | null>(null);
-  const [form, setForm] = useState({ check_number: "", amount: "", cash_account_id: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
+  const [checkFile, setCheckFile] = useState<File | null>(null);
+  const [editFile, setEditFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ check_number: "", amount: "", amount_usd: "", cash_account_id: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
 
   const { data: cashAccounts } = useQuery({ queryKey: ["cash-active"],
     queryFn: async () => (await supabase.from("cash_accounts").select("id,name,type").eq("is_active", true).order("name")).data ?? [] });
@@ -103,26 +106,45 @@ function FunderProfile() {
   async function onCreateCheck(e: React.FormEvent) {
     e.preventDefault();
     if (!form.cash_account_id) return toast.error("اختر حساب الإيداع");
-    const { error } = await supabase.from("funding_checks").insert({
-      funder_id: funderId,
-      check_number: form.check_number,
-      amount: Number(form.amount),
-      cash_account_id: form.cash_account_id,
-      received_date: form.received_date,
-      notes: form.notes || null,
-    });
-    if (error) return toast.error("فشل الحفظ", { description: error.message });
-    toast.success("تمت إضافة الصك");
-    setOpen(false);
-    setForm({ check_number: "", amount: "", cash_account_id: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
-    qc.invalidateQueries({ queryKey: ["funder-checks", funderId] });
+    setBusy(true);
+    try {
+      let attachment_url: string | null = null;
+      if (checkFile) {
+        const path = `${user!.id}/${Date.now()}-${checkFile.name}`;
+        const up = await supabase.storage.from("check-attachments").upload(path, checkFile);
+        if (up.error) throw up.error;
+        attachment_url = up.data.path;
+      }
+      const { error } = await supabase.from("funding_checks").insert({
+        funder_id: funderId,
+        check_number: form.check_number,
+        amount: Number(form.amount),
+        amount_usd: form.amount_usd ? Number(form.amount_usd) : null,
+        cash_account_id: form.cash_account_id,
+        received_date: form.received_date,
+        notes: form.notes || null,
+        attachment_url,
+      });
+      if (error) throw error;
+      toast.success("تمت إضافة الصك");
+      setOpen(false);
+      setForm({ check_number: "", amount: "", amount_usd: "", cash_account_id: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
+      setCheckFile(null);
+      qc.invalidateQueries({ queryKey: ["funder-checks", funderId] });
+    } catch (err: any) {
+      toast.error("فشل الحفظ", { description: err.message });
+    } finally {
+      setBusy(false);
+    }
   }
 
   function openEdit(c: any) {
     setEditing(c);
+    setEditFile(null);
     setForm({
       check_number: c.check_number,
       amount: String(c.amount),
+      amount_usd: c.amount_usd != null ? String(c.amount_usd) : "",
       cash_account_id: c.cash_account_id,
       received_date: c.received_date,
       notes: c.notes ?? "",
@@ -137,18 +159,34 @@ function FunderProfile() {
     if (used > 0 && newAmount < used) {
       return toast.error("لا يمكن تخفيض المبلغ تحت المستهلك", { description: `المستهلك: ${used}` });
     }
+    let attachment_url: string | undefined;
+    if (editFile) {
+      const path = `${user!.id}/${Date.now()}-${editFile.name}`;
+      const up = await supabase.storage.from("check-attachments").upload(path, editFile);
+      if (up.error) return toast.error("فشل رفع المرفق", { description: up.error.message });
+      attachment_url = up.data.path;
+    }
     const patch: any = {
       check_number: form.check_number,
       amount: newAmount,
+      amount_usd: form.amount_usd ? Number(form.amount_usd) : null,
       received_date: form.received_date,
       notes: form.notes || null,
     };
+    if (attachment_url) patch.attachment_url = attachment_url;
     if (used === 0) patch.cash_account_id = form.cash_account_id;
     const { error } = await supabase.from("funding_checks").update(patch).eq("id", editing.id);
     if (error) return toast.error("فشل التعديل", { description: error.message });
     toast.success("تم تحديث الصك");
     setEditing(null);
+    setEditFile(null);
     qc.invalidateQueries({ queryKey: ["funder-checks", funderId] });
+  }
+
+  async function downloadAttachment(path: string) {
+    const res = await supabase.storage.from("check-attachments").createSignedUrl(path, 60);
+    if (res.error || !res.data) return toast.error("فشل تحميل المرفق");
+    window.open(res.data.signedUrl, "_blank");
   }
 
   async function onConfirmDelete() {
@@ -187,6 +225,8 @@ function FunderProfile() {
                       <Input required value={form.check_number} onChange={(e) => setForm({ ...form, check_number: e.target.value })} dir="ltr" /></div>
                     <div className="space-y-2"><Label>المبلغ (د.ل)</Label>
                       <Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" /></div>
+                    <div className="space-y-2"><Label>المبلغ بالدولار (اختياري)</Label>
+                      <Input type="number" step="0.01" min="0" placeholder="USD" value={form.amount_usd} onChange={(e) => setForm({ ...form, amount_usd: e.target.value })} dir="ltr" /></div>
                     <div className="space-y-2"><Label>حساب الإيداع (الصندوق/البنك)</Label>
                       <Select value={form.cash_account_id} onValueChange={(v) => setForm({ ...form, cash_account_id: v })} required>
                         <SelectTrigger><SelectValue placeholder="اختر الحساب الذي أُودع فيه الصك" /></SelectTrigger>
@@ -196,9 +236,13 @@ function FunderProfile() {
                     </div>
                     <div className="space-y-2"><Label>تاريخ الاستلام</Label>
                       <Input required type="date" value={form.received_date} onChange={(e) => setForm({ ...form, received_date: e.target.value })} /></div>
+                    <div className="space-y-2"><Label>صورة الصك (اختياري)</Label>
+                      <Input type="file" accept="image/*,application/pdf" onChange={(e) => setCheckFile(e.target.files?.[0] ?? null)} />
+                      {checkFile && <p className="text-xs text-muted-foreground">{checkFile.name}</p>}
+                    </div>
                     <div className="space-y-2"><Label>ملاحظات</Label>
                       <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-                    <DialogFooter><Button type="submit">حفظ</Button></DialogFooter>
+                    <DialogFooter><Button type="submit" disabled={busy}>{busy ? "جاري الحفظ..." : "حفظ"}</Button></DialogFooter>
                   </form>
                 </DialogContent>
               </Dialog>
@@ -227,8 +271,9 @@ function FunderProfile() {
               <Table>
                 <TableHeader><TableRow>
                   <TableHead>رقم الصك</TableHead><TableHead>حساب الإيداع</TableHead><TableHead>تاريخ الاستلام</TableHead>
-                  <TableHead>المبلغ</TableHead><TableHead>المستخدم</TableHead>
+                  <TableHead>المبلغ</TableHead><TableHead>USD</TableHead><TableHead>المستخدم</TableHead>
                   <TableHead>المتبقي</TableHead><TableHead className="w-48">نسبة الاستهلاك</TableHead>
+                  <TableHead className="w-12">المرفق</TableHead>
                   {(canEditCheck || canDeleteCheck) && <TableHead className="w-24"></TableHead>}
                 </TableRow></TableHeader>
                 <TableBody>
@@ -242,9 +287,17 @@ function FunderProfile() {
                         <TableCell><Badge variant="outline">{c.cash_accounts?.name ?? "—"}</Badge></TableCell>
                         <TableCell>{formatDate(c.received_date)}</TableCell>
                         <TableCell className="tabular-nums">{formatCurrency(Number(c.amount))}</TableCell>
+                        <TableCell className="tabular-nums text-muted-foreground" dir="ltr">{c.amount_usd != null ? `$${Number(c.amount_usd).toLocaleString()}` : "—"}</TableCell>
                         <TableCell className="tabular-nums text-muted-foreground">{formatCurrency(used)}</TableCell>
                         <TableCell className={`tabular-nums font-semibold ${remaining <= 0 ? "text-destructive" : "text-primary"}`}>{formatCurrency(remaining)}</TableCell>
                         <TableCell><Progress value={pct} className="h-2" /><span className="text-xs text-muted-foreground">{pct.toFixed(1)}%</span></TableCell>
+                        <TableCell>
+                          {c.attachment_url ? (
+                            <Button size="icon" variant="ghost" onClick={() => downloadAttachment(c.attachment_url)} title="عرض المرفق">
+                              <Paperclip className="size-3.5" />
+                            </Button>
+                          ) : <span className="text-muted-foreground text-xs">—</span>}
+                        </TableCell>
                         {(canEditCheck || canDeleteCheck) && (
                           <TableCell>
                             <div className="flex gap-1">
@@ -332,6 +385,8 @@ function FunderProfile() {
                   <Input required value={form.check_number} onChange={(e) => setForm({ ...form, check_number: e.target.value })} dir="ltr" /></div>
                 <div className="space-y-2"><Label>المبلغ (د.ل)</Label>
                   <Input required type="number" step="0.01" min={used || 0.01} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" /></div>
+                <div className="space-y-2"><Label>المبلغ بالدولار (اختياري)</Label>
+                  <Input type="number" step="0.01" min="0" placeholder="USD" value={form.amount_usd} onChange={(e) => setForm({ ...form, amount_usd: e.target.value })} dir="ltr" /></div>
                 <div className="space-y-2"><Label>حساب الإيداع</Label>
                   <Select value={form.cash_account_id} onValueChange={(v) => setForm({ ...form, cash_account_id: v })} disabled={used > 0}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -340,6 +395,14 @@ function FunderProfile() {
                 </div>
                 <div className="space-y-2"><Label>تاريخ الاستلام</Label>
                   <Input required type="date" value={form.received_date} onChange={(e) => setForm({ ...form, received_date: e.target.value })} /></div>
+                <div className="space-y-2"><Label>صورة الصك (اختياري)</Label>
+                  <Input type="file" accept="image/*,application/pdf" onChange={(e) => setEditFile(e.target.files?.[0] ?? null)} />
+                  {editing.attachment_url && !editFile && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => downloadAttachment(editing.attachment_url)}>
+                      <Paperclip className="size-3.5" /> عرض المرفق الحالي
+                    </Button>
+                  )}
+                </div>
                 <div className="space-y-2"><Label>ملاحظات</Label>
                   <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
                 <DialogFooter><Button type="submit">حفظ التعديلات</Button></DialogFooter>
