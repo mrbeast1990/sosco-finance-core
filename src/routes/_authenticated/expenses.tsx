@@ -26,7 +26,13 @@ function ExpensesPage() {
   const qc = useQueryClient();
   const { can, user } = useAuth();
   const canCreate = can("expenses.create");
+  const canEdit = can("expenses.edit");
+  const canDelete = can("expenses.delete");
   const [search, setSearch] = useState("");
+  const [editingExp, setEditingExp] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({ description: "", expense_date: "" });
+  const [reversing, setReversing] = useState<any | null>(null);
+  const [reverseReason, setReverseReason] = useState("");
   const [filterProject, setFilterProject] = useState("all");
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
