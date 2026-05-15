@@ -28,7 +28,11 @@ function FunderProfile() {
   const qc = useQueryClient();
   const { can } = useAuth();
   const canCreateCheck = can("funding.create");
+  const canEditCheck = can("funding.edit");
+  const canDeleteCheck = can("funding.delete");
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState<any | null>(null);
   const [form, setForm] = useState({ check_number: "", amount: "", cash_account_id: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
 
   const { data: cashAccounts } = useQuery({ queryKey: ["cash-active"],
