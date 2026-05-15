@@ -36,7 +36,7 @@ function SettingsPage() {
         <TabsContent value="users"><UsersPanel canManage={can("users.manage")} /></TabsContent>
         <TabsContent value="cash"><CashAccountsPanel canManage={can("cash.manage")} /></TabsContent>
         <TabsContent value="categories"><CategoriesPanel canManage={can("categories.manage")} /></TabsContent>
-        <TabsContent value="permissions"><PermissionsPanel /></TabsContent>
+        <TabsContent value="permissions"><PermissionsPanel canManage={can("users.manage")} /></TabsContent>
       </Tabs>
     </div>
   );
