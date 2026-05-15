@@ -103,8 +103,8 @@ function ExpensesPage() {
         _payment_account_id: form.payment_account_id,
         _amount: Number(form.amount),
         _expense_date: form.expense_date,
-        _description: form.description || null,
-        _attachment_url: attachment_url,
+        _description: form.description || "",
+        _attachment_url: attachment_url ?? "",
         _allocations: allocations.map((a) => ({ funding_check_id: a.funding_check_id, amount: Number(a.amount) })),
       });
       if (error) throw error;
