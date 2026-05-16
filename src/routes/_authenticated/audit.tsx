@@ -41,7 +41,7 @@ function AuditCenter() {
 
   return (
     <div className="space-y-6" dir="rtl">
-      <PageHeader title="مركز التدقيق" subtitle="مراقبة سلامة البيانات والتتبع المحاسبي" />
+      <PageHeader title="مركز التدقيق" description="مراقبة سلامة البيانات والتتبع المحاسبي" />
       <Tabs defaultValue="summary" className="space-y-4">
         <TabsList>
           <TabsTrigger value="summary">الملخّص</TabsTrigger>
