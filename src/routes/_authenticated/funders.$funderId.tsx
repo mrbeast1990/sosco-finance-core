@@ -20,6 +20,8 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { LoadingState, EmptyState } from "@/components/States";
+import { useOnlineStatus } from "@/lib/use-online-status";
+import { enqueue } from "@/lib/offline-queue";
 
 export const Route = createFileRoute("/_authenticated/funders/$funderId")({ component: FunderProfile });
 
@@ -27,6 +29,7 @@ function FunderProfile() {
   const { funderId } = Route.useParams();
   const qc = useQueryClient();
   const { can, user } = useAuth();
+  const online = useOnlineStatus();
   const canCreateCheck = can("funding.create");
   const canEditCheck = can("funding.edit");
   const canDeleteCheck = can("funding.delete");
@@ -106,6 +109,35 @@ function FunderProfile() {
   async function onCreateCheck(e: React.FormEvent) {
     e.preventDefault();
     if (!form.cash_account_id) return toast.error("اختر حساب الإيداع");
+
+    // Offline path: enqueue without attachment
+    if (!online) {
+      if (checkFile) return toast.error("لا يمكن رفع المرفق أوفلاين", { description: "احفظ بدون صورة أو انتظر عودة الاتصال" });
+      try {
+        await enqueue({
+          type: "check.create",
+          label: `صك ${form.check_number} — ${form.amount} د.ل`,
+          payload: {
+            funder_id: funderId,
+            check_number: form.check_number,
+            amount: Number(form.amount),
+            amount_usd: form.amount_usd ? Number(form.amount_usd) : null,
+            cash_account_id: form.cash_account_id,
+            received_date: form.received_date,
+            notes: form.notes || null,
+            attachment_url: null,
+          },
+        });
+        toast.success("تم حفظ الصك في الطابور", { description: "سيُرسل عند عودة الاتصال" });
+        setOpen(false);
+        setForm({ check_number: "", amount: "", amount_usd: "", cash_account_id: "", received_date: new Date().toISOString().slice(0, 10), notes: "" });
+        setCheckFile(null);
+      } catch (err: any) {
+        toast.error("فشل الحفظ في الطابور", { description: err.message });
+      }
+      return;
+    }
+
     setBusy(true);
     try {
       let attachment_url: string | null = null;
