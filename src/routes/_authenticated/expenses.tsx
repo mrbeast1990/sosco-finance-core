@@ -17,6 +17,8 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { LoadingState, EmptyState } from "@/components/States";
+import { useOnlineStatus } from "@/lib/use-online-status";
+import { enqueue } from "@/lib/offline-queue";
 
 export const Route = createFileRoute("/_authenticated/expenses")({ component: ExpensesPage });
 
@@ -25,6 +27,7 @@ type Allocation = { funding_check_id: string; amount: string };
 function ExpensesPage() {
   const qc = useQueryClient();
   const { can, user } = useAuth();
+  const online = useOnlineStatus();
   const canCreate = can("expenses.create");
   const canEdit = can("expenses.edit");
   const canDelete = can("expenses.delete");
@@ -110,6 +113,34 @@ function ExpensesPage() {
     e.preventDefault();
     if (allocMismatch) return toast.error("مجموع التخصيصات لا يساوي مبلغ المصروف");
     if (allocations.some((a) => !a.funding_check_id || !a.amount)) return toast.error("أكمل بيانات التخصيصات");
+
+    // Offline: queue the create (no file uploads possible without network)
+    if (!online) {
+      if (file || excelFile) return toast.error("لا يمكن رفع المرفقات أوفلاين", { description: "احفظ بدون مرفقات أو انتظر عودة الاتصال" });
+      try {
+        const projName = (projects ?? []).find((p: any) => p.id === form.project_id)?.name ?? "";
+        await enqueue({
+          type: "expense.create",
+          label: `${projName} — ${form.amount} د.ل`,
+          payload: {
+            _project_id: form.project_id,
+            _category_id: form.category_id,
+            _amount: Number(form.amount),
+            _expense_date: form.expense_date,
+            _description: form.description || "",
+            _attachment_url: "",
+            _allocations: allocations.map((a) => ({ funding_check_id: a.funding_check_id, amount: Number(a.amount) })),
+            _excel_attachment_url: null,
+          },
+        });
+        toast.success("تم حفظ المصروف في الطابور", { description: "سيُرسل تلقائياً عند عودة الاتصال" });
+        setOpen(false);
+      } catch (err: any) {
+        toast.error("فشل الحفظ في الطابور", { description: err.message });
+      }
+      return;
+    }
+
     setBusy(true);
     try {
       let attachment_url: string | null = null;
