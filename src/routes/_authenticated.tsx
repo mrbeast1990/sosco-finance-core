@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Loader2 } from "lucide-react";
+import { OfflineBadge } from "@/components/OfflineBadge";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -33,6 +34,7 @@ function AuthenticatedLayout() {
           <header className="h-14 flex items-center gap-3 border-b bg-card px-4 sticky top-0 z-30">
             <SidebarTrigger />
             <div className="text-sm font-medium text-muted-foreground">نظام سوسكو المحاسبي</div>
+            <div className="mr-auto"><OfflineBadge /></div>
           </header>
           <main className="flex-1 p-6 overflow-auto">
             <Outlet />

@@ -1,7 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard, Briefcase, Users, Receipt,
-  BookOpen, Network, BarChart3, LogOut, Building2, Settings, ShieldCheck,
+  BookOpen, Network, BarChart3, LogOut, Building2, Settings, ShieldCheck, CloudUpload,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -32,6 +32,7 @@ const groups = [
     items: [
       { title: "التقارير", url: "/reports", icon: BarChart3, perm: "reports.view" },
       { title: "مركز التدقيق", url: "/audit", icon: ShieldCheck, perm: "audit.view" },
+      { title: "العمليات المعلقة", url: "/offline-queue", icon: CloudUpload, perm: null },
       { title: "الإعدادات", url: "/settings", icon: Settings, perm: "settings.view" },
     ],
   },
