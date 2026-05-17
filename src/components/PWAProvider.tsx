@@ -20,7 +20,7 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
         throttleTime: 1000,
       });
       persistQueryClient({
-        queryClient,
+        queryClient: queryClient as any,
         persister,
         maxAge: ONE_WEEK,
         buster: "v1",
