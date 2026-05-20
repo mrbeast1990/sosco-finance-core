@@ -28,12 +28,17 @@ function LoginPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      options: { rememberMe },
+    });
     setBusy(false);
     if (error) {
       toast.error("فشل تسجيل الدخول", { description: error.message });
       return;
     }
+    localStorage.setItem("rememberMe", String(rememberMe));
     toast.success("تم تسجيل الدخول");
     nav({ to: "/dashboard" });
   }
