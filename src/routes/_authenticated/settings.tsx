@@ -15,11 +15,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus } from "lucide-react";
+import { Plus, KeyRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { LoadingState, EmptyState } from "@/components/States";
 import { formatDate } from "@/lib/utils";
+import { useServerFn } from "@tanstack/react-start";
+import { adminCreateUserWithPin, adminResetPin } from "@/lib/users-admin.functions";
 
 export const Route = createFileRoute("/_authenticated/settings")({ component: SettingsPage });
 
@@ -47,10 +49,18 @@ function SettingsPage() {
 /* ---------- Users & Roles ---------- */
 function UsersPanel({ canManage }: { canManage: boolean }) {
   const qc = useQueryClient();
+  const createUser = useServerFn(adminCreateUserWithPin);
+  const resetPin = useServerFn(adminResetPin);
+  const [addOpen, setAddOpen] = useState(false);
+  const [pinOpen, setPinOpen] = useState<{ id: string; name: string } | null>(null);
+  const [pinValue, setPinValue] = useState("");
+  const [form, setForm] = useState({ username: "", full_name: "", pin: "", role_id: "" });
+
   const { data: users, isLoading } = useQuery({
     queryKey: ["all-users"],
     queryFn: async () => {
-      const { data: profiles } = await supabase.from("profiles").select("id, email, full_name, is_active, created_at").order("created_at");
+      const { data: profiles } = await supabase.from("profiles")
+        .select("id, email, username, full_name, is_active, created_at").order("created_at");
       const { data: ur } = await supabase.from("user_roles").select("user_id, role_id, roles(id, name, code)");
       const map = new Map<string, any[]>();
       (ur ?? []).forEach((r: any) => { const arr = map.get(r.user_id) ?? []; arr.push(r.roles); map.set(r.user_id, arr); });
@@ -76,24 +86,81 @@ function UsersPanel({ canManage }: { canManage: boolean }) {
     toast.success(value ? "تم التفعيل" : "تم التعطيل");
     qc.invalidateQueries({ queryKey: ["all-users"] });
   }
+  async function onCreate(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      await createUser({ data: form });
+      toast.success("تم إنشاء المستخدم");
+      setAddOpen(false);
+      setForm({ username: "", full_name: "", pin: "", role_id: "" });
+      qc.invalidateQueries({ queryKey: ["all-users"] });
+    } catch (err: any) {
+      toast.error("فشل الإنشاء", { description: err?.message ?? "" });
+    }
+  }
+  async function onResetPin(e: React.FormEvent) {
+    e.preventDefault();
+    if (!pinOpen) return;
+    try {
+      await resetPin({ data: { user_id: pinOpen.id, pin: pinValue } });
+      toast.success("تم تحديث رمز PIN");
+      setPinOpen(null);
+      setPinValue("");
+    } catch (err: any) {
+      toast.error("فشل التحديث", { description: err?.message ?? "" });
+    }
+  }
 
   return (
     <Card><CardContent className="p-4">
+      {canManage && (
+        <div className="mb-4 flex justify-end">
+          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <DialogTrigger asChild><Button><Plus className="size-4" /> مستخدم جديد</Button></DialogTrigger>
+            <DialogContent dir="rtl">
+              <DialogHeader><DialogTitle>إضافة مستخدم</DialogTitle></DialogHeader>
+              <form onSubmit={onCreate} className="space-y-4">
+                <div className="space-y-2"><Label>الاسم الكامل</Label>
+                  <Input required value={form.full_name}
+                    onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></div>
+                <div className="space-y-2"><Label>اسم المستخدم (لاتيني)</Label>
+                  <Input required dir="ltr" pattern="[a-zA-Z0-9_.\-]{3,32}" value={form.username}
+                    onChange={(e) => setForm({ ...form, username: e.target.value })}
+                    placeholder="مثل: ahmed.ali" /></div>
+                <div className="space-y-2"><Label>رمز PIN (6 أرقام)</Label>
+                  <Input required dir="ltr" inputMode="numeric" pattern="\d{6}" maxLength={6}
+                    className="text-center tracking-[0.5em]" value={form.pin}
+                    onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, "").slice(0, 6) })} /></div>
+                <div className="space-y-2"><Label>الدور</Label>
+                  <Select value={form.role_id} onValueChange={(v) => setForm({ ...form, role_id: v })}>
+                    <SelectTrigger><SelectValue placeholder="اختر دور" /></SelectTrigger>
+                    <SelectContent>
+                      {(roles ?? []).map((r: any) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select></div>
+                <DialogFooter><Button type="submit">إنشاء</Button></DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )}
+
       {isLoading ? <LoadingState /> : (users?.length ?? 0) === 0 ? <EmptyState title="لا يوجد مستخدمون" /> : (
         <Table>
           <TableHeader><TableRow>
-            <TableHead>المستخدم</TableHead><TableHead>البريد</TableHead>
-            <TableHead>الدور</TableHead><TableHead>الحالة</TableHead><TableHead>تاريخ التسجيل</TableHead>
+            <TableHead>الاسم</TableHead><TableHead>اسم المستخدم</TableHead>
+            <TableHead>الدور</TableHead><TableHead>الحالة</TableHead>
+            <TableHead>التاريخ</TableHead><TableHead></TableHead>
           </TableRow></TableHeader>
           <TableBody>
             {(users ?? []).map((u: any) => (
               <TableRow key={u.id}>
                 <TableCell className="font-medium">{u.full_name ?? "—"}</TableCell>
-                <TableCell dir="ltr" className="text-sm">{u.email ?? "—"}</TableCell>
+                <TableCell dir="ltr" className="text-sm">{u.username ?? <span className="text-muted-foreground">—</span>}</TableCell>
                 <TableCell>
                   {canManage ? (
                     <Select value={u.roles[0]?.id ?? ""} onValueChange={(v) => setRole(u.id, v)}>
-                      <SelectTrigger className="w-44"><SelectValue placeholder="اختر دور" /></SelectTrigger>
+                      <SelectTrigger className="w-40"><SelectValue placeholder="اختر دور" /></SelectTrigger>
                       <SelectContent>
                         {(roles ?? []).map((r: any) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
                       </SelectContent>
@@ -107,11 +174,32 @@ function UsersPanel({ canManage }: { canManage: boolean }) {
                     : <Badge variant={u.is_active ? "default" : "destructive"}>{u.is_active ? "نشط" : "معطل"}</Badge>}
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">{formatDate(u.created_at)}</TableCell>
+                <TableCell>
+                  {canManage && u.username && (
+                    <Button size="sm" variant="ghost"
+                      onClick={() => { setPinOpen({ id: u.id, name: u.full_name ?? u.username }); setPinValue(""); }}>
+                      <KeyRound className="size-4" /> PIN
+                    </Button>
+                  )}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       )}
+
+      <Dialog open={!!pinOpen} onOpenChange={(o) => { if (!o) setPinOpen(null); }}>
+        <DialogContent dir="rtl">
+          <DialogHeader><DialogTitle>إعادة تعيين PIN — {pinOpen?.name}</DialogTitle></DialogHeader>
+          <form onSubmit={onResetPin} className="space-y-4">
+            <div className="space-y-2"><Label>رمز PIN جديد (6 أرقام)</Label>
+              <Input required dir="ltr" inputMode="numeric" pattern="\d{6}" maxLength={6}
+                className="text-center tracking-[0.5em]" value={pinValue}
+                onChange={(e) => setPinValue(e.target.value.replace(/\D/g, "").slice(0, 6))} /></div>
+            <DialogFooter><Button type="submit">حفظ</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </CardContent></Card>
   );
 }
