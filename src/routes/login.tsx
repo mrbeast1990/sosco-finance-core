@@ -28,10 +28,10 @@ function LoginPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    localStorage.setItem("rememberMe", String(rememberMe));
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
-      options: { rememberMe },
     });
     setBusy(false);
     if (error) {
