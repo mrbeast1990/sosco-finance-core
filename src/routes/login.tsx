@@ -15,6 +15,10 @@ function LoginPage() {
   const { session, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("rememberMe") !== "false";
+  });
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
