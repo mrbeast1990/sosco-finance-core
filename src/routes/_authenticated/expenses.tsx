@@ -332,61 +332,63 @@ function ExpensesPage() {
             </Select>
           </div>
           {isLoading ? <LoadingState /> : filtered.length === 0 ? <EmptyState title="لا توجد مصروفات" /> : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>التاريخ</TableHead>
-                  <TableHead>المشروع</TableHead>
-                  <TableHead>الفئة</TableHead>
-                  <TableHead>حساب الدفع</TableHead>
-                  <TableHead>الصكوك</TableHead>
-                  <TableHead>الوصف</TableHead>
-                  <TableHead className="text-left">المبلغ</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((e: any) => (
-                  <TableRow key={e.id}>
-                    <TableCell className="text-sm text-muted-foreground">{formatDate(e.expense_date)}</TableCell>
-                    <TableCell><div className="font-medium">{e.projects?.name}</div><div className="text-xs text-muted-foreground tabular-nums" dir="ltr">{e.projects?.code}</div></TableCell>
-                    <TableCell>{e.expense_categories?.name}</TableCell>
-                    <TableCell className="text-xs">
-                      {Array.from(new Set((e.expense_funding_allocations ?? []).map((a: any) => a.funding_checks?.cash_accounts?.name).filter(Boolean))).join("، ") || "—"}
-                    </TableCell>
-                    <TableCell className="tabular-nums text-xs" dir="ltr">
-                      {(e.expense_funding_allocations ?? []).map((a: any) => a.funding_checks?.check_number).filter(Boolean).join("، ") || "—"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm max-w-[240px] truncate">{e.description ?? "—"}</TableCell>
-                    <TableCell className="text-left font-medium tabular-nums">{formatCurrency(e.amount)}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        {e.attachment_url && (
-                          <Button size="sm" variant="ghost" onClick={() => downloadAttachment(e.attachment_url)} title="مرفق">
-                            <Paperclip className="size-3.5" />
-                          </Button>
-                        )}
-                        {e.excel_attachment_url && (
-                          <Button size="sm" variant="ghost" onClick={() => downloadAttachment(e.excel_attachment_url)} title="ملف Excel">
-                            <FileSpreadsheet className="size-3.5 text-success" />
-                          </Button>
-                        )}
-                        {canEdit && (
-                          <Button size="sm" variant="ghost" onClick={() => openEditExp(e)} title="تعديل">
-                            <Pencil className="size-3.5" />
-                          </Button>
-                        )}
-                        {canDelete && (
-                          <Button size="sm" variant="ghost" onClick={() => setReversing(e)} title="عكس/حذف">
-                            <Undo2 className="size-3.5 text-destructive" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
+            <div className="overflow-x-auto -mx-4 px-4">
+              <Table className="min-w-[900px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>التاريخ</TableHead>
+                    <TableHead>المشروع</TableHead>
+                    <TableHead>الفئة</TableHead>
+                    <TableHead>حساب الدفع</TableHead>
+                    <TableHead>الصكوك</TableHead>
+                    <TableHead>الوصف</TableHead>
+                    <TableHead className="text-left">المبلغ</TableHead>
+                    <TableHead></TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((e: any) => (
+                    <TableRow key={e.id}>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{formatDate(e.expense_date)}</TableCell>
+                      <TableCell><div className="font-medium">{e.projects?.name}</div><div className="text-xs text-muted-foreground tabular-nums" dir="ltr">{e.projects?.code}</div></TableCell>
+                      <TableCell>{e.expense_categories?.name}</TableCell>
+                      <TableCell className="text-xs">
+                        {Array.from(new Set((e.expense_funding_allocations ?? []).map((a: any) => a.funding_checks?.cash_accounts?.name).filter(Boolean))).join("، ") || "—"}
+                      </TableCell>
+                      <TableCell className="tabular-nums text-xs whitespace-nowrap" dir="ltr">
+                        {(e.expense_funding_allocations ?? []).map((a: any) => a.funding_checks?.check_number).filter(Boolean).join("، ") || "—"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm max-w-[180px] truncate">{e.description ?? "—"}</TableCell>
+                      <TableCell className="text-left font-medium tabular-nums whitespace-nowrap">{formatCurrency(e.amount)}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          {e.attachment_url && (
+                            <Button size="sm" variant="ghost" onClick={() => downloadAttachment(e.attachment_url)} title="مرفق">
+                              <Paperclip className="size-3.5" />
+                            </Button>
+                          )}
+                          {e.excel_attachment_url && (
+                            <Button size="sm" variant="ghost" onClick={() => downloadAttachment(e.excel_attachment_url)} title="ملف Excel">
+                              <FileSpreadsheet className="size-3.5 text-success" />
+                            </Button>
+                          )}
+                          {canEdit && (
+                            <Button size="sm" variant="ghost" onClick={() => openEditExp(e)} title="تعديل">
+                              <Pencil className="size-3.5" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button size="sm" variant="ghost" onClick={() => setReversing(e)} title="عكس/حذف">
+                              <Undo2 className="size-3.5 text-destructive" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
