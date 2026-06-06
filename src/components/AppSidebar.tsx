@@ -11,7 +11,7 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "./ui/button";
 
 const groups = [
-  { label: "الرئيسية", items: [{ title: "لوحة التحكم", url: "/dashboard", icon: LayoutDashboard, perm: null }] },
+  { label: "الرئيسية", items: [{ title: "لوحة التحكم", url: "/dashboard", icon: LayoutDashboard, perm: "dashboard.view" }] },
   {
     label: "البيانات الأساسية",
     items: [
