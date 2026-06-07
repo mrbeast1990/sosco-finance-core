@@ -24,7 +24,6 @@ const groups = [
     items: [
       { title: "المصروفات", url: "/expenses", icon: Receipt, perm: "expenses.view" },
       { title: "القيود اليومية", url: "/journal-entries", icon: BookOpen, perm: "journal.view" },
-      { title: "شجرة الحسابات", url: "/accounts", icon: Network, perm: "accounts.view" },
     ],
   },
   {
