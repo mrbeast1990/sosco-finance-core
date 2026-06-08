@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutDashboard, Briefcase, Users, Receipt,
+  LayoutDashboard, Briefcase, Users, Receipt, Wallet, Boxes,
   BookOpen, Network, BarChart3, LogOut, Building2, Settings, ShieldCheck, CloudUpload,
 } from "lucide-react";
 import {
