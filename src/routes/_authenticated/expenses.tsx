@@ -241,18 +241,62 @@ function ExpensesPage() {
             <DialogContent dir="rtl" className="max-w-2xl">
               <DialogHeader><DialogTitle>تسجيل مصروف جديد</DialogTitle></DialogHeader>
               <form onSubmit={onSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>نوع الارتباط</Label>
+                  <Select value={form.expense_scope} onValueChange={(v: any) => setForm({ ...form, expense_scope: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="project">مشروع</SelectItem>
+                      <SelectItem value="asset">أصل</SelectItem>
+                      <SelectItem value="general">مصروف عام</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2"><Label>المشروع</Label>
-                    <Select value={form.project_id} onValueChange={(v) => setForm({ ...form, project_id: v })} required>
-                      <SelectTrigger><SelectValue placeholder="اختر المشروع" /></SelectTrigger>
-                      <SelectContent>{(projects ?? []).map((p: any) => <SelectItem key={p.id} value={p.id}>{p.code} — {p.name}</SelectItem>)}</SelectContent>
-                    </Select></div>
+                  {form.expense_scope === "project" && (
+                    <div className="space-y-2"><Label>المشروع</Label>
+                      <Select value={form.project_id} onValueChange={(v) => setForm({ ...form, project_id: v })} required>
+                        <SelectTrigger><SelectValue placeholder="اختر المشروع" /></SelectTrigger>
+                        <SelectContent>{(projects ?? []).map((p: any) => <SelectItem key={p.id} value={p.id}>{p.code} — {p.name}</SelectItem>)}</SelectContent>
+                      </Select></div>
+                  )}
+                  {form.expense_scope === "asset" && (
+                    <>
+                      <div className="space-y-2"><Label>الأصل</Label>
+                        <Select value={form.asset_id} onValueChange={(v) => setForm({ ...form, asset_id: v })} required>
+                          <SelectTrigger><SelectValue placeholder="اختر الأصل" /></SelectTrigger>
+                          <SelectContent>{(assets ?? []).map((a: any) => <SelectItem key={a.id} value={a.id}>{a.asset_code} — {a.asset_name}</SelectItem>)}</SelectContent>
+                        </Select></div>
+                      <div className="space-y-2"><Label>نوع مصروف الأصل</Label>
+                        <Select value={form.asset_expense_type} onValueChange={(v) => setForm({ ...form, asset_expense_type: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="maintenance">صيانة</SelectItem>
+                            <SelectItem value="fuel">وقود</SelectItem>
+                            <SelectItem value="spare_parts">قطع غيار</SelectItem>
+                            <SelectItem value="insurance">تأمين</SelectItem>
+                            <SelectItem value="rent">إيجار</SelectItem>
+                            <SelectItem value="operation">تشغيل</SelectItem>
+                            <SelectItem value="other">أخرى</SelectItem>
+                          </SelectContent>
+                        </Select></div>
+                      <div className="space-y-2 col-span-2"><Label>المعالجة المحاسبية</Label>
+                        <Select value={form.asset_cost_treatment} onValueChange={(v: any) => setForm({ ...form, asset_cost_treatment: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="operating_expense">مصروف تشغيلي (لا يزيد قيمة الأصل)</SelectItem>
+                            <SelectItem value="capital_improvement">تحسين رأسمالي (يزيد قيمة الأصل)</SelectItem>
+                          </SelectContent>
+                        </Select></div>
+                    </>
+                  )}
                   <div className="space-y-2"><Label>فئة المصروف</Label>
                     <Select value={form.category_id} onValueChange={(v) => setForm({ ...form, category_id: v })} required>
                       <SelectTrigger><SelectValue placeholder="اختر الفئة" /></SelectTrigger>
                       <SelectContent>{(cats ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                     </Select></div>
                 </div>
+
                 <div className="space-y-2"><Label>المبلغ الإجمالي (د.ل)</Label>
                   <Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" />
                 </div>
