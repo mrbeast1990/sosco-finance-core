@@ -1,119 +1,106 @@
-# خطة تحويل SOSCO إلى PWA + Offline-First
+# خطة العمل: المسحوبات + الأصول + تحديث المصروفات
 
-## ⚠️ ملاحظات حرجة قبل البدء
-
-1. **PWA لا يعمل في معاينة Lovable** (iframe). جميع ميزات الأوفلاين والتثبيت ستعمل فقط على `sosco-finance-core.lovable.app` بعد النشر.
-2. **الكتابة أوفلاين في نظام محاسبي = خطر مقبول لكن موثق**: المستخدم يفهم أن:
-   - الـ RPCs الذرية (`create_expense_atomic`) ستتحقق من الأرصدة **عند المزامنة**، ليس عند الإنشاء أوفلاين
-   - إذا أنشأ مستخدمان مصروفاً من نفس الصك أوفلاين، الأول ينجح والثاني يفشل عند المزامنة
-   - الفشل يُحفظ في الطابور مع رسالة الخطأ، ولا يدخل قاعدة البيانات
-3. **لن نلمس** الـ RPCs، الـ RLS، أو منطق المحاسبة. فقط طبقة عميل.
+سأضيف وحدتين جديدتين ووسّع نظام المصروفات. كل التغييرات آمنة على البيانات الموجودة وتحافظ على التصميم العربي/RTL والصلاحيات والـ Audit Log.
 
 ---
 
-## النطاق (V1)
+## 1) قاعدة البيانات (Migration واحدة)
 
-### 1. PWA Shell
-- إضافة `vite-plugin-pwa` + `workbox`
-- `manifest.webmanifest` (اسم عربي، أيقونة، display: standalone، theme color)
-- توليد أيقونتي PWA (192px, 512px)
-- Service Worker مع استراتيجيات:
-  - HTML navigations: `NetworkFirst` (3s timeout)
-  - JS/CSS/fonts: `StaleWhileRevalidate`
-  - Supabase REST API (GET): `NetworkFirst` مع cache 24h
-- **حماية ضد iframe/preview**: عدم تسجيل SW على `id-preview-*` أو داخل iframe
-- `devOptions.enabled: false` (لا يعمل في dev)
+### حسابات جديدة في `accounts`
+- `1020` البنك (نوع أصول، فرعي)
+- `1500` الأصول الثابتة (نوع أصول، رئيسي)
+- `3100` مسحوبات الشركاء/المالكين (نوع حقوق ملكية)
 
-### 2. تخزين القراءة أوفلاين
-- تثبيت `@tanstack/query-sync-storage-persister` + `@tanstack/react-query-persist-client`
-- استخدام `localStorage` (بسيط، يكفي لحجم بيانات سوسكو الحالي)
-- مدة `maxAge`: 7 أيام
-- مفاتيح القراءة الحالية (dashboard, expenses, funders, projects, journal-entries, reports) تُحفظ تلقائياً
+### جدول `owner_withdrawals`
+كل الحقول المطلوبة + `withdrawal_no` يولّد تلقائياً من sequence (`WD-1`, `WD-2`, ...).
 
-### 3. طابور كتابة (Write Queue) — أوفلاين فقط
-**النطاق محصور**:
-- ✅ إنشاء مصروف جديد (`expenses.create`)
-- ✅ إنشاء صك تمويل جديد (`funding.create`)
-- ❌ **التعديل والحذف معطّلان أوفلاين** (رسالة: "يتطلب اتصال إنترنت")
-- ❌ رفع الملفات (صور الصكوك/الفواتير) معطّل أوفلاين
+### جدول `assets`
+كل الحقول المطلوبة + `asset_code` فريد.
 
-**التنفيذ**:
-- مكتبة `idb-keyval` لتخزين الطابور في IndexedDB
-- ملف `src/lib/offline-queue.ts`:
-  - `enqueue(op)`, `processQueue()`, `getQueue()`, `removeItem(id)`
-- العمليات المُخزّنة تحمل: `id, type, payload, createdAt, attempts, lastError`
-- عند العودة للأونلاين (`window.addEventListener('online')`): تشغيل تلقائي للطابور
-- زر يدوي "مزامنة الآن" في الـ Header
+### تعديل `expenses`
+- إضافة `expense_scope text not null default 'project'`
+- إضافة `asset_id uuid` (nullable)
+- إضافة `asset_expense_type text` (nullable)
+- إضافة `asset_cost_treatment text` (nullable)
+- تحديث السجلات الموجودة: `expense_scope = 'project'` (الافتراضي يغطيها)
+- إزالة قيد NOT NULL عن `project_id` ليسمح بـ general/asset
 
-### 4. مؤشرات UI
-- **شارة في الـ Header**: 
-  - 🟢 متصل / 🔴 أوفلاين
-  - عداد العمليات المعلقة (مثلاً "3 معلقة")
-- **شاشة الطابور** (`/offline-queue`): قائمة بالعمليات المعلقة + الفاشلة، مع زر "إعادة المحاولة" و"حذف"
-- Toast عند نجاح/فشل المزامنة لكل عملية
+### الصلاحيات الجديدة (insert in `permissions`)
+`withdrawals.view/create/update/approve/cancel/delete/reports`
+`assets.view/create/update/delete/reports`
++ ربطها بدور admin تلقائياً.
 
-### 5. سلوك خاص أوفلاين
-- في صفحة المصروفات/الصكوك: عند الإرسال أوفلاين → يُحفظ في الطابور + toast "سيتم الإرسال عند عودة الاتصال" + لا يظهر في القائمة (لأن البيانات الحقيقية تأتي من Supabase)
-- صفحة الطابور تُظهر المعلق
+### دوال SECURITY DEFINER جديدة
+- `create_withdrawal_atomic(...)` — ينشئ السجل بحالة draft فقط
+- `approve_withdrawal_atomic(_id)` — يولّد القيد المحاسبي ويغيّر الحالة لـ approved
+- `cancel_withdrawal_atomic(_id, _reason)` — لو كانت approved يعكس القيد
+- تعديل `create_expense_atomic` لقبول `_expense_scope`, `_asset_id`, `_asset_expense_type`, `_asset_cost_treatment`:
+  - scope=project ⇒ يتطلب project_id
+  - scope=asset ⇒ يتطلب asset_id، ولو treatment=capital_improvement يستخدم حساب 1500 + يزيد `assets.current_value`
+  - scope=general ⇒ لا project ولا asset
+
+### RLS
+كل الجداول الجديدة: `has_permission(auth.uid(), '...')` لكل عملية. لا `USING (true)` على الجداول الحساسة.
+
+### Storage
+استخدام bucket `expense-attachments` الموجود نفسه لمرفقات السحوبات والأصول (لتقليل التغييرات).
 
 ---
 
-## الملفات المتأثرة
+## 2) الواجهة الأمامية
 
-**جديدة**:
-- `public/manifest.webmanifest`
-- `public/icon-192.png`, `public/icon-512.png` (مولّدة)
-- `src/lib/offline-queue.ts`
-- `src/lib/use-online-status.ts`
-- `src/components/OfflineBadge.tsx`
-- `src/components/PWAProvider.tsx` (تسجيل SW + persistence)
-- `src/routes/_authenticated/offline-queue.tsx`
+### Sidebar (`AppSidebar.tsx`)
+إضافة بندين في مجموعة "العمليات المالية":
+- المسحوبات → `/withdrawals` (perm: `withdrawals.view`)
+- الأصول → `/assets-registry` (perm: `assets.view`)
 
-**معدّلة (بحذر، إضافات فقط)**:
-- `package.json` — إضافة `vite-plugin-pwa`, `idb-keyval`, `@tanstack/react-query-persist-client`, `@tanstack/query-sync-storage-persister`
-- `vite.config.ts` — إضافة plugin PWA
-- `src/routes/__root.tsx` — تركيب PWAProvider + روابط manifest
-- `src/routes/_authenticated.tsx` — إضافة OfflineBadge في الـ Header
-- `src/routes/_authenticated/expenses.tsx` — التقاط الإرسال إذا أوفلاين → enqueue
-- `src/routes/_authenticated/funders.$funderId.tsx` — نفس الشيء لإنشاء الصكوك
-- `src/components/AppSidebar.tsx` — رابط "العمليات المعلقة"
+### صفحات جديدة
+- `src/routes/_authenticated/withdrawals.tsx` — قائمة + فلاتر (تاريخ، شخص، دور، طريقة دفع، حالة، مشروع) + بطاقات إجماليات + Dialog إنشاء/تعديل + أزرار اعتماد/إلغاء + رفع مرفق.
+- `src/routes/_authenticated/assets-registry.tsx` — قائمة الأصول + Dialog إنشاء/تعديل + Dialog تفاصيل (معلومات + قيمة شرائية + قيمة حالية + إجمالي مصروفات تشغيلية + إجمالي تحسينات رأسمالية + سجل المصروفات).
 
-**لن نلمس**:
-- ❌ أي شيء في `supabase/migrations/`
-- ❌ الـ RPCs
-- ❌ RLS
-- ❌ `src/integrations/supabase/*`
-- ❌ منطق المصادقة
+### تحديث نموذج المصروف (`expenses.tsx`)
+إضافة حقل **نوع الارتباط** (RadioGroup أو Select) في الأعلى:
+- مشروع (افتراضي — يحافظ على السلوك الحالي)
+- أصل → يظهر منتقي الأصول + نوع المصروف + المعالجة (تشغيلي/تحسين رأسمالي)
+- مصروف عام → يخفي الكل
 
----
+إضافة عمود "النطاق" في جدول المصروفات + فلتر.
 
-## ما لن يعمل أوفلاين (مقبول)
-- التعديل والحذف
-- رفع المرفقات (صور صكوك / Excel)
-- التقارير الجديدة (تعتمد على بيانات لحظية)
-- مركز التدقيق (يتطلب فحص لحظي)
-- صفحات الإدارة (الصلاحيات، المستخدمين)
+### Dashboard (`dashboard.tsx`)
+بطاقات إضافية:
+- إجمالي مصروفات المشاريع
+- إجمالي مصروفات الأصول التشغيلية
+- إجمالي المصروفات العامة
+- إجمالي المسحوبات
+- إجمالي التحسينات الرأسمالية
+- صافي الربح التشغيلي
+
+### تحديث `types.ts`
+سيتم تجديده تلقائياً بعد الـ migration.
 
 ---
 
-## مخاطر متبقية (موثقة)
-
-| الخطر | التخفيف |
-|---|---|
-| مستخدمان يستهلكان نفس الصك أوفلاين | الـ RPC يرفض الثاني عند المزامنة، الخطأ يظهر في شاشة الطابور |
-| تجاوز رصيد عند المزامنة | نفس الشيء — الـ RPC يحمي |
-| الـ session ينتهي أثناء عمل أوفلاين | المزامنة تفشل، المستخدم يسجل دخول، يضغط "إعادة المحاولة" |
-| المستخدم يحذف من جهاز آخر بينما الأول يعمل أوفلاين | عند المزامنة قد يفشل (الصك محذوف)، خطأ واضح |
-| طابور ضخم في حالة انقطاع طويل | محدود بـ 100 عملية، تحذير عند الـ50 |
+## 3) الأمان والـ Audit
+- كل عملية (create/update/approve/cancel/delete) على المسحوبات والأصول تُسجَّل في `audit_log` عبر الدوال atomic.
+- صلاحية `withdrawals.approve` مستقلة عن `withdrawals.create` (فصل المهام).
 
 ---
 
-## التحقق بعد التنفيذ
-1. بناء ناجح
-2. تشغيل التطبيق أونلاين → كل شيء يعمل كالعادة
-3. قطع الإنترنت في DevTools → الشارة تتحول 🔴، التنقل يعمل، البيانات المحفوظة تظهر
-4. تسجيل مصروف أوفلاين → يدخل الطابور
-5. إعادة الاتصال → مزامنة تلقائية + toast نجاح
-6. في النسخة المنشورة: تثبيت التطبيق من المتصفح
+## 4) خطوات التنفيذ
 
-هل تعتمد الخطة؟
+1. **Migration** واحدة شاملة (جداول + حسابات + صلاحيات + دوال + RLS).
+2. تحديث `AppSidebar.tsx`.
+3. إنشاء صفحتي `withdrawals.tsx` و`assets-registry.tsx`.
+4. تحديث `expenses.tsx` بحقل النطاق والمنطق المرتبط.
+5. تحديث `dashboard.tsx` بالبطاقات الجديدة.
+6. التحقق من الـ build.
+
+---
+
+## ملاحظات مهمة
+- لن أعدّل ملفات `client.ts` / `types.ts` يدوياً.
+- البيانات الموجودة آمنة: الـ default `'project'` يغطي السجلات القديمة.
+- لن ألمس `journal_entries`/`journal_lines` schema — أستخدمها كما هي.
+- التقارير التفصيلية للمسحوبات/الأصول سأضيفها كأقسام داخل صفحة `reports.tsx` (filter حسب النوع) بدلاً من صفحات منفصلة، للحفاظ على البساطة.
+
+هل توافق على هذه الخطة؟
