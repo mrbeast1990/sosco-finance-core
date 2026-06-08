@@ -42,13 +42,18 @@ function ExpensesPage() {
   const [file, setFile] = useState<File | null>(null);
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [form, setForm] = useState({
-    project_id: "", category_id: "",
+    expense_scope: "project" as "project" | "asset" | "general",
+    project_id: "", asset_id: "", asset_expense_type: "maintenance",
+    asset_cost_treatment: "operating_expense" as "operating_expense" | "capital_improvement",
+    category_id: "",
     amount: "", expense_date: new Date().toISOString().slice(0, 10), description: "",
   });
   const [allocations, setAllocations] = useState<Allocation[]>([{ funding_check_id: "", amount: "" }]);
 
   const { data: projects } = useQuery({ queryKey: ["projects-sel"],
     queryFn: async () => (await supabase.from("projects").select("id,name,code").is("deleted_at", null)).data ?? [] });
+  const { data: assets } = useQuery({ queryKey: ["assets-sel"],
+    queryFn: async () => (await supabase.from("assets").select("id,asset_code,asset_name").is("deleted_at", null)).data ?? [] });
   const { data: cats } = useQuery({ queryKey: ["cats-sel"],
     queryFn: async () => (await supabase.from("expense_categories").select("id,name").order("name")).data ?? [] });
   const { data: checks } = useQuery({ queryKey: ["checks-sel"],
@@ -88,8 +93,12 @@ function ExpensesPage() {
   const allocMismatch = amountNum > 0 && Math.round(allocTotal * 100) !== Math.round(amountNum * 100);
 
   function openNew() {
-    setForm({ project_id: "", category_id: "", amount: "",
-      expense_date: new Date().toISOString().slice(0, 10), description: "" });
+    setForm({
+      expense_scope: "project", project_id: "", asset_id: "",
+      asset_expense_type: "maintenance", asset_cost_treatment: "operating_expense",
+      category_id: "", amount: "",
+      expense_date: new Date().toISOString().slice(0, 10), description: "",
+    });
     setAllocations([{ funding_check_id: "", amount: "" }]);
     setFile(null);
     setExcelFile(null);
@@ -113,6 +122,8 @@ function ExpensesPage() {
     e.preventDefault();
     if (allocMismatch) return toast.error("مجموع التخصيصات لا يساوي مبلغ المصروف");
     if (allocations.some((a) => !a.funding_check_id || !a.amount)) return toast.error("أكمل بيانات التخصيصات");
+    if (form.expense_scope === "project" && !form.project_id) return toast.error("اختر المشروع");
+    if (form.expense_scope === "asset" && !form.asset_id) return toast.error("اختر الأصل");
 
     // Offline: queue the create (no file uploads possible without network)
     if (!online) {
@@ -157,8 +168,12 @@ function ExpensesPage() {
         if (up.error) throw up.error;
         excel_attachment_url = up.data.path;
       }
-      const { error } = await supabase.rpc("create_expense_atomic", {
-        _project_id: form.project_id,
+      const { error } = await supabase.rpc("create_expense_v2", {
+        _expense_scope: form.expense_scope,
+        _project_id: form.expense_scope === "project" ? form.project_id : null,
+        _asset_id: form.expense_scope === "asset" ? form.asset_id : null,
+        _asset_expense_type: form.expense_scope === "asset" ? form.asset_expense_type : null,
+        _asset_cost_treatment: form.expense_scope === "asset" ? form.asset_cost_treatment : null,
         _category_id: form.category_id,
         _amount: Number(form.amount),
         _expense_date: form.expense_date,
@@ -226,18 +241,62 @@ function ExpensesPage() {
             <DialogContent dir="rtl" className="max-w-2xl">
               <DialogHeader><DialogTitle>تسجيل مصروف جديد</DialogTitle></DialogHeader>
               <form onSubmit={onSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>نوع الارتباط</Label>
+                  <Select value={form.expense_scope} onValueChange={(v: any) => setForm({ ...form, expense_scope: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="project">مشروع</SelectItem>
+                      <SelectItem value="asset">أصل</SelectItem>
+                      <SelectItem value="general">مصروف عام</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2"><Label>المشروع</Label>
-                    <Select value={form.project_id} onValueChange={(v) => setForm({ ...form, project_id: v })} required>
-                      <SelectTrigger><SelectValue placeholder="اختر المشروع" /></SelectTrigger>
-                      <SelectContent>{(projects ?? []).map((p: any) => <SelectItem key={p.id} value={p.id}>{p.code} — {p.name}</SelectItem>)}</SelectContent>
-                    </Select></div>
+                  {form.expense_scope === "project" && (
+                    <div className="space-y-2"><Label>المشروع</Label>
+                      <Select value={form.project_id} onValueChange={(v) => setForm({ ...form, project_id: v })} required>
+                        <SelectTrigger><SelectValue placeholder="اختر المشروع" /></SelectTrigger>
+                        <SelectContent>{(projects ?? []).map((p: any) => <SelectItem key={p.id} value={p.id}>{p.code} — {p.name}</SelectItem>)}</SelectContent>
+                      </Select></div>
+                  )}
+                  {form.expense_scope === "asset" && (
+                    <>
+                      <div className="space-y-2"><Label>الأصل</Label>
+                        <Select value={form.asset_id} onValueChange={(v) => setForm({ ...form, asset_id: v })} required>
+                          <SelectTrigger><SelectValue placeholder="اختر الأصل" /></SelectTrigger>
+                          <SelectContent>{(assets ?? []).map((a: any) => <SelectItem key={a.id} value={a.id}>{a.asset_code} — {a.asset_name}</SelectItem>)}</SelectContent>
+                        </Select></div>
+                      <div className="space-y-2"><Label>نوع مصروف الأصل</Label>
+                        <Select value={form.asset_expense_type} onValueChange={(v) => setForm({ ...form, asset_expense_type: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="maintenance">صيانة</SelectItem>
+                            <SelectItem value="fuel">وقود</SelectItem>
+                            <SelectItem value="spare_parts">قطع غيار</SelectItem>
+                            <SelectItem value="insurance">تأمين</SelectItem>
+                            <SelectItem value="rent">إيجار</SelectItem>
+                            <SelectItem value="operation">تشغيل</SelectItem>
+                            <SelectItem value="other">أخرى</SelectItem>
+                          </SelectContent>
+                        </Select></div>
+                      <div className="space-y-2 col-span-2"><Label>المعالجة المحاسبية</Label>
+                        <Select value={form.asset_cost_treatment} onValueChange={(v: any) => setForm({ ...form, asset_cost_treatment: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="operating_expense">مصروف تشغيلي (لا يزيد قيمة الأصل)</SelectItem>
+                            <SelectItem value="capital_improvement">تحسين رأسمالي (يزيد قيمة الأصل)</SelectItem>
+                          </SelectContent>
+                        </Select></div>
+                    </>
+                  )}
                   <div className="space-y-2"><Label>فئة المصروف</Label>
                     <Select value={form.category_id} onValueChange={(v) => setForm({ ...form, category_id: v })} required>
                       <SelectTrigger><SelectValue placeholder="اختر الفئة" /></SelectTrigger>
                       <SelectContent>{(cats ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                     </Select></div>
                 </div>
+
                 <div className="space-y-2"><Label>المبلغ الإجمالي (د.ل)</Label>
                   <Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" />
                 </div>

@@ -52,6 +52,66 @@ export type Database = {
           },
         ]
       }
+      assets: {
+        Row: {
+          asset_code: string
+          asset_name: string
+          asset_type: string
+          created_at: string
+          created_by: string | null
+          current_location: string | null
+          current_value: number | null
+          deleted_at: string | null
+          id: string
+          notes: string | null
+          plate_number: string | null
+          purchase_date: string | null
+          purchase_value: number | null
+          responsible_person: string | null
+          serial_number: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          asset_code: string
+          asset_name: string
+          asset_type: string
+          created_at?: string
+          created_by?: string | null
+          current_location?: string | null
+          current_value?: number | null
+          deleted_at?: string | null
+          id?: string
+          notes?: string | null
+          plate_number?: string | null
+          purchase_date?: string | null
+          purchase_value?: number | null
+          responsible_person?: string | null
+          serial_number?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          asset_code?: string
+          asset_name?: string
+          asset_type?: string
+          created_at?: string
+          created_by?: string | null
+          current_location?: string | null
+          current_value?: number | null
+          deleted_at?: string | null
+          id?: string
+          notes?: string | null
+          plate_number?: string | null
+          purchase_date?: string | null
+          purchase_value?: number | null
+          responsible_person?: string | null
+          serial_number?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: string
@@ -195,6 +255,9 @@ export type Database = {
       expenses: {
         Row: {
           amount: number
+          asset_cost_treatment: string | null
+          asset_expense_type: string | null
+          asset_id: string | null
           attachment_url: string | null
           category_id: string
           created_at: string
@@ -203,14 +266,18 @@ export type Database = {
           description: string | null
           excel_attachment_url: string | null
           expense_date: string
+          expense_scope: string
           id: string
           journal_entry_id: string | null
-          project_id: string
+          project_id: string | null
           updated_at: string | null
           updated_by: string | null
         }
         Insert: {
           amount: number
+          asset_cost_treatment?: string | null
+          asset_expense_type?: string | null
+          asset_id?: string | null
           attachment_url?: string | null
           category_id: string
           created_at?: string
@@ -219,14 +286,18 @@ export type Database = {
           description?: string | null
           excel_attachment_url?: string | null
           expense_date?: string
+          expense_scope?: string
           id?: string
           journal_entry_id?: string | null
-          project_id: string
+          project_id?: string | null
           updated_at?: string | null
           updated_by?: string | null
         }
         Update: {
           amount?: number
+          asset_cost_treatment?: string | null
+          asset_expense_type?: string | null
+          asset_id?: string | null
           attachment_url?: string | null
           category_id?: string
           created_at?: string
@@ -235,13 +306,21 @@ export type Database = {
           description?: string | null
           excel_attachment_url?: string | null
           expense_date?: string
+          expense_scope?: string
           id?: string
           journal_entry_id?: string | null
-          project_id?: string
+          project_id?: string | null
           updated_at?: string | null
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "expenses_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "expenses_category_id_fkey"
             columns: ["category_id"]
@@ -439,6 +518,109 @@ export type Database = {
           },
         ]
       }
+      owner_withdrawals: {
+        Row: {
+          amount: number
+          approved_at: string | null
+          approved_by: string | null
+          attachment_url: string | null
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          cash_account_id: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          description: string | null
+          funding_check_id: string | null
+          id: string
+          journal_entry_id: string | null
+          payment_method: string
+          person_name: string
+          person_role: string
+          project_id: string | null
+          reversal_entry_id: string | null
+          status: string
+          updated_at: string
+          withdrawal_date: string
+          withdrawal_no: string
+        }
+        Insert: {
+          amount: number
+          approved_at?: string | null
+          approved_by?: string | null
+          attachment_url?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cash_account_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          funding_check_id?: string | null
+          id?: string
+          journal_entry_id?: string | null
+          payment_method: string
+          person_name: string
+          person_role: string
+          project_id?: string | null
+          reversal_entry_id?: string | null
+          status?: string
+          updated_at?: string
+          withdrawal_date?: string
+          withdrawal_no?: string
+        }
+        Update: {
+          amount?: number
+          approved_at?: string | null
+          approved_by?: string | null
+          attachment_url?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cash_account_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          funding_check_id?: string | null
+          id?: string
+          journal_entry_id?: string | null
+          payment_method?: string
+          person_name?: string
+          person_role?: string
+          project_id?: string | null
+          reversal_entry_id?: string | null
+          status?: string
+          updated_at?: string
+          withdrawal_date?: string
+          withdrawal_no?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_withdrawals_cash_account_id_fkey"
+            columns: ["cash_account_id"]
+            isOneToOne: false
+            referencedRelation: "cash_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_withdrawals_funding_check_id_fkey"
+            columns: ["funding_check_id"]
+            isOneToOne: false
+            referencedRelation: "funding_checks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_withdrawals_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       permissions: {
         Row: {
           code: string
@@ -617,6 +799,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_withdrawal_atomic: { Args: { _id: string }; Returns: string }
+      cancel_withdrawal_atomic: {
+        Args: { _id: string; _reason: string }
+        Returns: undefined
+      }
       check_remaining: { Args: { _check_id: string }; Returns: number }
       create_expense_atomic:
         | {
@@ -644,6 +831,38 @@ export type Database = {
             }
             Returns: string
           }
+      create_expense_v2: {
+        Args: {
+          _allocations: Json
+          _amount: number
+          _asset_cost_treatment: string
+          _asset_expense_type: string
+          _asset_id: string
+          _attachment_url: string
+          _category_id: string
+          _description: string
+          _excel_attachment_url?: string
+          _expense_date: string
+          _expense_scope: string
+          _project_id: string
+        }
+        Returns: string
+      }
+      create_withdrawal_atomic: {
+        Args: {
+          _amount: number
+          _attachment_url: string
+          _cash_account_id: string
+          _description: string
+          _funding_check_id: string
+          _payment_method: string
+          _person_name: string
+          _person_role: string
+          _project_id: string
+          _withdrawal_date: string
+        }
+        Returns: string
+      }
       has_permission: {
         Args: { _perm_code: string; _user_id: string }
         Returns: boolean

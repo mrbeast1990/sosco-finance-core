@@ -243,7 +243,7 @@ function ProjectsReport() {
       const { data: projects } = await supabase.from("projects").select("id, name, code").is("deleted_at", null);
       const { data: exp } = await supabase.from("expenses").select("project_id, amount").is("deleted_at", null);
       const map: Record<string, number> = {};
-      (exp ?? []).forEach((e) => { map[e.project_id] = (map[e.project_id] ?? 0) + Number(e.amount); });
+      (exp ?? []).forEach((e) => { if (!e.project_id) return; map[e.project_id] = (map[e.project_id] ?? 0) + Number(e.amount); });
       return (projects ?? []).map((p: any) => ({ ...p, total: map[p.id] ?? 0 })).sort((a, b) => b.total - a.total);
     },
   });

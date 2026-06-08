@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutDashboard, Briefcase, Users, Receipt,
+  LayoutDashboard, Briefcase, Users, Receipt, Wallet, Boxes,
   BookOpen, Network, BarChart3, LogOut, Building2, Settings, ShieldCheck, CloudUpload,
 } from "lucide-react";
 import {
@@ -23,6 +23,8 @@ const groups = [
     label: "العمليات المالية",
     items: [
       { title: "المصروفات", url: "/expenses", icon: Receipt, perm: "expenses.view" },
+      { title: "المسحوبات", url: "/withdrawals", icon: Wallet, perm: "withdrawals.view" },
+      { title: "الأصول", url: "/assets-registry", icon: Boxes, perm: "assets.view" },
       { title: "القيود اليومية", url: "/journal-entries", icon: BookOpen, perm: "journal.view" },
     ],
   },
