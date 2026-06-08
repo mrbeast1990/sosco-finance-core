@@ -168,8 +168,12 @@ function ExpensesPage() {
         if (up.error) throw up.error;
         excel_attachment_url = up.data.path;
       }
-      const { error } = await supabase.rpc("create_expense_atomic", {
-        _project_id: form.project_id,
+      const { error } = await supabase.rpc("create_expense_v2", {
+        _expense_scope: form.expense_scope,
+        _project_id: form.expense_scope === "project" ? form.project_id : null,
+        _asset_id: form.expense_scope === "asset" ? form.asset_id : null,
+        _asset_expense_type: form.expense_scope === "asset" ? form.asset_expense_type : null,
+        _asset_cost_treatment: form.expense_scope === "asset" ? form.asset_cost_treatment : null,
         _category_id: form.category_id,
         _amount: Number(form.amount),
         _expense_date: form.expense_date,
