@@ -91,8 +91,12 @@ function ExpensesPage() {
   const allocMismatch = amountNum > 0 && Math.round(allocTotal * 100) !== Math.round(amountNum * 100);
 
   function openNew() {
-    setForm({ project_id: "", category_id: "", amount: "",
-      expense_date: new Date().toISOString().slice(0, 10), description: "" });
+    setForm({
+      expense_scope: "project", project_id: "", asset_id: "",
+      asset_expense_type: "maintenance", asset_cost_treatment: "operating_expense",
+      category_id: "", amount: "",
+      expense_date: new Date().toISOString().slice(0, 10), description: "",
+    });
     setAllocations([{ funding_check_id: "", amount: "" }]);
     setFile(null);
     setExcelFile(null);
