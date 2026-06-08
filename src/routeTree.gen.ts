@@ -13,6 +13,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedWithdrawalsRouteImport } from './routes/_authenticated/withdrawals'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
 import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticated/projects'
@@ -21,6 +22,7 @@ import { Route as AuthenticatedJournalEntriesRouteImport } from './routes/_authe
 import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
+import { Route as AuthenticatedAssetsRegistryRouteImport } from './routes/_authenticated/assets-registry'
 import { Route as AuthenticatedAccountsRouteImport } from './routes/_authenticated/accounts'
 import { Route as AuthenticatedFundersIndexRouteImport } from './routes/_authenticated/funders.index'
 import { Route as AuthenticatedFundersFunderIdRouteImport } from './routes/_authenticated/funders.$funderId'
@@ -44,6 +46,12 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedWithdrawalsRoute =
+  AuthenticatedWithdrawalsRouteImport.update({
+    id: '/withdrawals',
+    path: '/withdrawals',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -86,6 +94,12 @@ const AuthenticatedAuditRoute = AuthenticatedAuditRouteImport.update({
   path: '/audit',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAssetsRegistryRoute =
+  AuthenticatedAssetsRegistryRouteImport.update({
+    id: '/assets-registry',
+    path: '/assets-registry',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAccountsRoute = AuthenticatedAccountsRouteImport.update({
   id: '/accounts',
   path: '/accounts',
@@ -109,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/accounts': typeof AuthenticatedAccountsRoute
+  '/assets-registry': typeof AuthenticatedAssetsRegistryRoute
   '/audit': typeof AuthenticatedAuditRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/expenses': typeof AuthenticatedExpensesRoute
@@ -117,6 +132,7 @@ export interface FileRoutesByFullPath {
   '/projects': typeof AuthenticatedProjectsRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/withdrawals': typeof AuthenticatedWithdrawalsRoute
   '/funders/$funderId': typeof AuthenticatedFundersFunderIdRoute
   '/funders/': typeof AuthenticatedFundersIndexRoute
 }
@@ -125,6 +141,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/accounts': typeof AuthenticatedAccountsRoute
+  '/assets-registry': typeof AuthenticatedAssetsRegistryRoute
   '/audit': typeof AuthenticatedAuditRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/expenses': typeof AuthenticatedExpensesRoute
@@ -133,6 +150,7 @@ export interface FileRoutesByTo {
   '/projects': typeof AuthenticatedProjectsRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/withdrawals': typeof AuthenticatedWithdrawalsRoute
   '/funders/$funderId': typeof AuthenticatedFundersFunderIdRoute
   '/funders': typeof AuthenticatedFundersIndexRoute
 }
@@ -143,6 +161,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/_authenticated/accounts': typeof AuthenticatedAccountsRoute
+  '/_authenticated/assets-registry': typeof AuthenticatedAssetsRegistryRoute
   '/_authenticated/audit': typeof AuthenticatedAuditRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
@@ -151,6 +170,7 @@ export interface FileRoutesById {
   '/_authenticated/projects': typeof AuthenticatedProjectsRoute
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/withdrawals': typeof AuthenticatedWithdrawalsRoute
   '/_authenticated/funders/$funderId': typeof AuthenticatedFundersFunderIdRoute
   '/_authenticated/funders/': typeof AuthenticatedFundersIndexRoute
 }
@@ -161,6 +181,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/accounts'
+    | '/assets-registry'
     | '/audit'
     | '/dashboard'
     | '/expenses'
@@ -169,6 +190,7 @@ export interface FileRouteTypes {
     | '/projects'
     | '/reports'
     | '/settings'
+    | '/withdrawals'
     | '/funders/$funderId'
     | '/funders/'
   fileRoutesByTo: FileRoutesByTo
@@ -177,6 +199,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/accounts'
+    | '/assets-registry'
     | '/audit'
     | '/dashboard'
     | '/expenses'
@@ -185,6 +208,7 @@ export interface FileRouteTypes {
     | '/projects'
     | '/reports'
     | '/settings'
+    | '/withdrawals'
     | '/funders/$funderId'
     | '/funders'
   id:
@@ -194,6 +218,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/_authenticated/accounts'
+    | '/_authenticated/assets-registry'
     | '/_authenticated/audit'
     | '/_authenticated/dashboard'
     | '/_authenticated/expenses'
@@ -202,6 +227,7 @@ export interface FileRouteTypes {
     | '/_authenticated/projects'
     | '/_authenticated/reports'
     | '/_authenticated/settings'
+    | '/_authenticated/withdrawals'
     | '/_authenticated/funders/$funderId'
     | '/_authenticated/funders/'
   fileRoutesById: FileRoutesById
@@ -242,6 +268,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/withdrawals': {
+      id: '/_authenticated/withdrawals'
+      path: '/withdrawals'
+      fullPath: '/withdrawals'
+      preLoaderRoute: typeof AuthenticatedWithdrawalsRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
@@ -299,6 +332,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAuditRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/assets-registry': {
+      id: '/_authenticated/assets-registry'
+      path: '/assets-registry'
+      fullPath: '/assets-registry'
+      preLoaderRoute: typeof AuthenticatedAssetsRegistryRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/accounts': {
       id: '/_authenticated/accounts'
       path: '/accounts'
@@ -325,6 +365,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAccountsRoute: typeof AuthenticatedAccountsRoute
+  AuthenticatedAssetsRegistryRoute: typeof AuthenticatedAssetsRegistryRoute
   AuthenticatedAuditRoute: typeof AuthenticatedAuditRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
@@ -333,12 +374,14 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProjectsRoute: typeof AuthenticatedProjectsRoute
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedWithdrawalsRoute: typeof AuthenticatedWithdrawalsRoute
   AuthenticatedFundersFunderIdRoute: typeof AuthenticatedFundersFunderIdRoute
   AuthenticatedFundersIndexRoute: typeof AuthenticatedFundersIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAccountsRoute: AuthenticatedAccountsRoute,
+  AuthenticatedAssetsRegistryRoute: AuthenticatedAssetsRegistryRoute,
   AuthenticatedAuditRoute: AuthenticatedAuditRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,
@@ -347,6 +390,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedProjectsRoute: AuthenticatedProjectsRoute,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedWithdrawalsRoute: AuthenticatedWithdrawalsRoute,
   AuthenticatedFundersFunderIdRoute: AuthenticatedFundersFunderIdRoute,
   AuthenticatedFundersIndexRoute: AuthenticatedFundersIndexRoute,
 }
@@ -364,3 +408,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
