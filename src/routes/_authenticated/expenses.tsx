@@ -42,7 +42,10 @@ function ExpensesPage() {
   const [file, setFile] = useState<File | null>(null);
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [form, setForm] = useState({
-    project_id: "", category_id: "",
+    expense_scope: "project" as "project" | "asset" | "general",
+    project_id: "", asset_id: "", asset_expense_type: "maintenance",
+    asset_cost_treatment: "operating_expense" as "operating_expense" | "capital_improvement",
+    category_id: "",
     amount: "", expense_date: new Date().toISOString().slice(0, 10), description: "",
   });
   const [allocations, setAllocations] = useState<Allocation[]>([{ funding_check_id: "", amount: "" }]);
