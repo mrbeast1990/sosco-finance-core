@@ -23,6 +23,8 @@ const groups = [
     label: "العمليات المالية",
     items: [
       { title: "المصروفات", url: "/expenses", icon: Receipt, perm: "expenses.view" },
+      { title: "المسحوبات", url: "/withdrawals", icon: Wallet, perm: "withdrawals.view" },
+      { title: "الأصول", url: "/assets-registry", icon: Boxes, perm: "assets.view" },
       { title: "القيود اليومية", url: "/journal-entries", icon: BookOpen, perm: "journal.view" },
     ],
   },
