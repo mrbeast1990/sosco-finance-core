@@ -52,6 +52,8 @@ function ExpensesPage() {
 
   const { data: projects } = useQuery({ queryKey: ["projects-sel"],
     queryFn: async () => (await supabase.from("projects").select("id,name,code").is("deleted_at", null)).data ?? [] });
+  const { data: assets } = useQuery({ queryKey: ["assets-sel"],
+    queryFn: async () => (await supabase.from("assets").select("id,asset_code,asset_name").is("deleted_at", null)).data ?? [] });
   const { data: cats } = useQuery({ queryKey: ["cats-sel"],
     queryFn: async () => (await supabase.from("expense_categories").select("id,name").order("name")).data ?? [] });
   const { data: checks } = useQuery({ queryKey: ["checks-sel"],
