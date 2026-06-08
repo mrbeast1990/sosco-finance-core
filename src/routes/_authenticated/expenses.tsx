@@ -122,6 +122,8 @@ function ExpensesPage() {
     e.preventDefault();
     if (allocMismatch) return toast.error("مجموع التخصيصات لا يساوي مبلغ المصروف");
     if (allocations.some((a) => !a.funding_check_id || !a.amount)) return toast.error("أكمل بيانات التخصيصات");
+    if (form.expense_scope === "project" && !form.project_id) return toast.error("اختر المشروع");
+    if (form.expense_scope === "asset" && !form.asset_id) return toast.error("اختر الأصل");
 
     // Offline: queue the create (no file uploads possible without network)
     if (!online) {
