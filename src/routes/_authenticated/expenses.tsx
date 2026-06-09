@@ -33,7 +33,14 @@ function ExpensesPage() {
   const canDelete = can("expenses.delete");
   const [search, setSearch] = useState("");
   const [editingExp, setEditingExp] = useState<any | null>(null);
-  const [editForm, setEditForm] = useState({ description: "", expense_date: "" });
+  const [editForm, setEditForm] = useState({
+    expense_scope: "project" as "project" | "asset" | "general",
+    project_id: "", asset_id: "", asset_expense_type: "maintenance",
+    asset_cost_treatment: "operating_expense" as "operating_expense" | "capital_improvement",
+    category_id: "", amount: "", expense_date: "", description: "",
+  });
+  const [editAllocations, setEditAllocations] = useState<Allocation[]>([{ funding_check_id: "", amount: "" }]);
+  const [editBusy, setEditBusy] = useState(false);
   const [reversing, setReversing] = useState<any | null>(null);
   const [reverseReason, setReverseReason] = useState("");
   const [filterProject, setFilterProject] = useState("all");
@@ -195,22 +202,62 @@ function ExpensesPage() {
 
   function openEditExp(e: any) {
     setEditingExp(e);
-    setEditForm({ description: e.description ?? "", expense_date: e.expense_date });
+    setEditForm({
+      expense_scope: (e.expense_scope ?? "project"),
+      project_id: e.project_id ?? "",
+      asset_id: e.asset_id ?? "",
+      asset_expense_type: e.asset_expense_type ?? "maintenance",
+      asset_cost_treatment: e.asset_cost_treatment ?? "operating_expense",
+      category_id: e.category_id ?? "",
+      amount: String(e.amount ?? ""),
+      expense_date: e.expense_date,
+      description: e.description ?? "",
+    });
+    setEditAllocations(
+      (e.expense_funding_allocations ?? []).length
+        ? e.expense_funding_allocations.map((a: any) => ({
+            funding_check_id: a.funding_check_id ?? (a.funding_checks?.id ?? ""),
+            amount: String(a.amount),
+          }))
+        : [{ funding_check_id: "", amount: "" }]
+    );
   }
+
+  const editAmountNum = Number(editForm.amount) || 0;
+  const editAllocTotal = editAllocations.reduce((s, a) => s + (Number(a.amount) || 0), 0);
+  const editMismatch = editAmountNum > 0 && Math.round(editAllocTotal * 100) !== Math.round(editAmountNum * 100);
 
   async function onSaveEditExp(ev: React.FormEvent) {
     ev.preventDefault();
     if (!editingExp) return;
-    const { error } = await supabase.from("expenses").update({
-      description: editForm.description || null,
-      expense_date: editForm.expense_date,
-      updated_at: new Date().toISOString(),
-      updated_by: user!.id,
-    }).eq("id", editingExp.id);
-    if (error) return toast.error("فشل التعديل", { description: error.message });
-    toast.success("تم تحديث المصروف");
-    setEditingExp(null);
-    qc.invalidateQueries({ queryKey: ["expenses"] });
+    if (editMismatch) return toast.error("مجموع التخصيصات لا يساوي المبلغ");
+    if (editAllocations.some((a) => !a.funding_check_id || !a.amount)) return toast.error("أكمل بيانات التخصيصات");
+    if (editForm.expense_scope === "project" && !editForm.project_id) return toast.error("اختر المشروع");
+    if (editForm.expense_scope === "asset" && !editForm.asset_id) return toast.error("اختر الأصل");
+    setEditBusy(true);
+    try {
+      const { error } = await supabase.rpc("update_expense_atomic", {
+        _expense_id: editingExp.id,
+        _expense_scope: editForm.expense_scope,
+        _project_id: editForm.expense_scope === "project" ? editForm.project_id : null,
+        _asset_id: editForm.expense_scope === "asset" ? editForm.asset_id : null,
+        _asset_expense_type: editForm.expense_scope === "asset" ? editForm.asset_expense_type : null,
+        _asset_cost_treatment: editForm.expense_scope === "asset" ? editForm.asset_cost_treatment : null,
+        _category_id: editForm.category_id,
+        _amount: Number(editForm.amount),
+        _expense_date: editForm.expense_date,
+        _description: editForm.description || "",
+        _allocations: editAllocations.map((a) => ({ funding_check_id: a.funding_check_id, amount: Number(a.amount) })),
+      } as any);
+      if (error) throw error;
+      toast.success("تم تحديث المصروف", { description: "تم تسجيل التغيير في سجل المراجعة" });
+      setEditingExp(null);
+      qc.invalidateQueries();
+    } catch (err: any) {
+      toast.error("فشل التعديل", { description: err.message });
+    } finally {
+      setEditBusy(false);
+    }
   }
 
   async function onConfirmReverse() {
@@ -453,17 +500,112 @@ function ExpensesPage() {
       </Card>
 
       <Dialog open={!!editingExp} onOpenChange={(o) => !o && setEditingExp(null)}>
-        <DialogContent dir="rtl">
+        <DialogContent dir="rtl" className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>تعديل المصروف</DialogTitle></DialogHeader>
           <form onSubmit={onSaveEditExp} className="space-y-4">
-            <div className="rounded-md bg-muted/40 border p-2 text-xs text-muted-foreground">
-              للحفاظ على سلامة القيود المحاسبية، يمكن تعديل التاريخ والوصف فقط. لتغيير المبلغ أو التخصيصات، اعكس المصروف وأنشئ مصروفاً جديداً.
+            <div className="rounded-md bg-amber-500/10 border border-amber-500/30 p-2 text-xs">
+              ⚠️ سيتم إعادة بناء القيد المحاسبي وتسجيل القيم القديمة والجديدة في سجل المراجعة.
             </div>
-            <div className="space-y-2"><Label>التاريخ</Label>
-              <Input required type="date" value={editForm.expense_date} onChange={(ev) => setEditForm({ ...editForm, expense_date: ev.target.value })} /></div>
+            <div className="space-y-2">
+              <Label>نوع الارتباط</Label>
+              <Select value={editForm.expense_scope} onValueChange={(v: any) => setEditForm({ ...editForm, expense_scope: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="project">مشروع</SelectItem>
+                  <SelectItem value="asset">أصل</SelectItem>
+                  <SelectItem value="general">مصروف عام</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {editForm.expense_scope === "project" && (
+                <div className="space-y-2"><Label>المشروع</Label>
+                  <Select value={editForm.project_id} onValueChange={(v) => setEditForm({ ...editForm, project_id: v })}>
+                    <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                    <SelectContent>{(projects ?? []).map((p: any) => <SelectItem key={p.id} value={p.id}>{p.code} — {p.name}</SelectItem>)}</SelectContent>
+                  </Select></div>
+              )}
+              {editForm.expense_scope === "asset" && (
+                <>
+                  <div className="space-y-2"><Label>الأصل</Label>
+                    <Select value={editForm.asset_id} onValueChange={(v) => setEditForm({ ...editForm, asset_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                      <SelectContent>{(assets ?? []).map((a: any) => <SelectItem key={a.id} value={a.id}>{a.asset_code} — {a.asset_name}</SelectItem>)}</SelectContent>
+                    </Select></div>
+                  <div className="space-y-2"><Label>نوع مصروف الأصل</Label>
+                    <Select value={editForm.asset_expense_type} onValueChange={(v) => setEditForm({ ...editForm, asset_expense_type: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="maintenance">صيانة</SelectItem>
+                        <SelectItem value="fuel">وقود</SelectItem>
+                        <SelectItem value="spare_parts">قطع غيار</SelectItem>
+                        <SelectItem value="insurance">تأمين</SelectItem>
+                        <SelectItem value="rent">إيجار</SelectItem>
+                        <SelectItem value="operation">تشغيل</SelectItem>
+                        <SelectItem value="other">أخرى</SelectItem>
+                      </SelectContent>
+                    </Select></div>
+                  <div className="space-y-2 col-span-2"><Label>المعالجة المحاسبية</Label>
+                    <Select value={editForm.asset_cost_treatment} onValueChange={(v: any) => setEditForm({ ...editForm, asset_cost_treatment: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="operating_expense">مصروف تشغيلي</SelectItem>
+                        <SelectItem value="capital_improvement">تحسين رأسمالي</SelectItem>
+                      </SelectContent>
+                    </Select></div>
+                </>
+              )}
+              <div className="space-y-2"><Label>فئة المصروف</Label>
+                <Select value={editForm.category_id} onValueChange={(v) => setEditForm({ ...editForm, category_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                  <SelectContent>{(cats ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                </Select></div>
+            </div>
+
+            <div className="space-y-2"><Label>المبلغ الإجمالي (د.ل)</Label>
+              <Input required type="number" step="0.01" min="0.01" value={editForm.amount} onChange={(ev) => setEditForm({ ...editForm, amount: ev.target.value })} dir="ltr" />
+            </div>
+
+            <div className="space-y-2 rounded-md border p-3">
+              <div className="flex items-center justify-between">
+                <Label>تخصيص مصادر التمويل</Label>
+                <Button type="button" variant="outline" size="sm" onClick={() => setEditAllocations([...editAllocations, { funding_check_id: "", amount: "" }])}>
+                  <Plus className="size-3.5" /> صك آخر
+                </Button>
+              </div>
+              {editAllocations.map((a, i) => (
+                <div key={i} className="grid grid-cols-[1fr_140px_auto] gap-2 items-end">
+                  <Select value={a.funding_check_id} onValueChange={(v) => {
+                    const next = [...editAllocations]; next[i] = { ...next[i], funding_check_id: v }; setEditAllocations(next);
+                  }}>
+                    <SelectTrigger><SelectValue placeholder="اختر صك" /></SelectTrigger>
+                    <SelectContent>{(checks ?? []).map((x: any) => (
+                      <SelectItem key={x.id} value={x.id}>صك {x.check_number} — {x.funders?.name} — {x.cash_accounts?.name}</SelectItem>
+                    ))}</SelectContent>
+                  </Select>
+                  <Input type="number" step="0.01" min="0.01" placeholder="المبلغ" value={a.amount} onChange={(ev) => {
+                    const next = [...editAllocations]; next[i] = { ...next[i], amount: ev.target.value }; setEditAllocations(next);
+                  }} dir="ltr" />
+                  {editAllocations.length > 1 && (
+                    <Button type="button" variant="ghost" size="icon" onClick={() => setEditAllocations(editAllocations.filter((_, j) => j !== i))}>
+                      <X className="size-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              <div className={`flex justify-between text-sm pt-2 border-t ${editMismatch ? "text-destructive" : "text-muted-foreground"}`}>
+                <span>مجموع التخصيصات</span>
+                <span className="tabular-nums font-medium">{formatCurrency(editAllocTotal)} / {formatCurrency(editAmountNum)}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>التاريخ</Label>
+                <Input required type="date" value={editForm.expense_date} onChange={(ev) => setEditForm({ ...editForm, expense_date: ev.target.value })} /></div>
+            </div>
             <div className="space-y-2"><Label>الوصف</Label>
               <Textarea value={editForm.description} onChange={(ev) => setEditForm({ ...editForm, description: ev.target.value })} /></div>
-            <DialogFooter><Button type="submit">حفظ</Button></DialogFooter>
+            <DialogFooter><Button type="submit" disabled={editBusy || editMismatch}>{editBusy ? "جاري الحفظ..." : "حفظ التعديل"}</Button></DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
