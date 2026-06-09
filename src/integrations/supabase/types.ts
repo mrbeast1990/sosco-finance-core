@@ -878,6 +878,22 @@ export type Database = {
         Args: { _expense_id: string; _reason: string }
         Returns: undefined
       }
+      update_expense_atomic: {
+        Args: {
+          _allocations: Json
+          _amount: number
+          _asset_cost_treatment: string
+          _asset_expense_type: string
+          _asset_id: string
+          _category_id: string
+          _description: string
+          _expense_date: string
+          _expense_id: string
+          _expense_scope: string
+          _project_id: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       account_type: "asset" | "liability" | "equity" | "revenue" | "expense"
