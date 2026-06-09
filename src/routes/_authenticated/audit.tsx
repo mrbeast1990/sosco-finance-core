@@ -295,6 +295,85 @@ function IntegrityChecks() {
   );
 }
 
+function fmtVal(v: any): string {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "number") return new Intl.NumberFormat("ar-LY", { minimumFractionDigits: 2 }).format(v);
+  if (typeof v === "boolean") return v ? "نعم" : "لا";
+  return String(v);
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  expense_date: "التاريخ",
+  amount: "المبلغ",
+  description: "الوصف",
+  expense_scope: "النطاق",
+  project_name: "المشروع",
+  asset_name: "الأصل",
+  asset_expense_type: "نوع مصروف الأصل",
+  asset_cost_treatment: "المعالجة",
+  category_name: "الفئة",
+};
+
+const SCOPE_LABELS: Record<string, string> = {
+  project: "مشروع", asset: "أصل", general: "عام",
+  operating_expense: "تشغيلي", capital_improvement: "تحسين رأسمالي",
+};
+
+function translate(field: string, val: any): string {
+  if (val == null) return "—";
+  if (SCOPE_LABELS[String(val)]) return SCOPE_LABELS[String(val)];
+  return fmtVal(val);
+}
+
+function DiffView({ before, after }: { before: any; after: any }) {
+  const fields = Array.from(new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})]))
+    .filter((k) => FIELD_LABELS[k]);
+  const rows = fields.map((f) => {
+    const b = before?.[f]; const a = after?.[f];
+    const changed = JSON.stringify(b) !== JSON.stringify(a);
+    return { f, b, a, changed };
+  });
+  const beforeAllocs = (before?.allocations ?? []) as any[];
+  const afterAllocs = (after?.allocations ?? []) as any[];
+  const allocsChanged = JSON.stringify(beforeAllocs) !== JSON.stringify(afterAllocs);
+
+  return (
+    <div className="space-y-3">
+      <div className="border rounded-md overflow-hidden">
+        <div className="grid grid-cols-3 bg-muted/50 text-xs font-medium p-2">
+          <div>الحقل</div><div>قبل</div><div>بعد</div>
+        </div>
+        {rows.map((r) => (
+          <div key={r.f} className={`grid grid-cols-3 text-sm p-2 border-t ${r.changed ? "bg-amber-500/10" : ""}`}>
+            <div className="text-muted-foreground">{FIELD_LABELS[r.f]}</div>
+            <div className={r.changed ? "line-through opacity-70" : ""}>{translate(r.f, r.b)}</div>
+            <div className={r.changed ? "font-medium" : ""}>{translate(r.f, r.a)}</div>
+          </div>
+        ))}
+      </div>
+      {(beforeAllocs.length > 0 || afterAllocs.length > 0) && (
+        <div className={`border rounded-md p-3 ${allocsChanged ? "bg-amber-500/10" : ""}`}>
+          <div className="text-xs font-medium mb-2">التخصيصات (الصكوك):</div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <div className="text-muted-foreground text-xs mb-1">قبل</div>
+              {beforeAllocs.length === 0 ? <div className="text-xs text-muted-foreground">—</div> : beforeAllocs.map((a, i) => (
+                <div key={i} className="text-xs tabular-nums" dir="ltr">صك {a.check_number} — {fmtVal(Number(a.amount))}</div>
+              ))}
+            </div>
+            <div>
+              <div className="text-muted-foreground text-xs mb-1">بعد</div>
+              {afterAllocs.length === 0 ? <div className="text-xs text-muted-foreground">—</div> : afterAllocs.map((a, i) => (
+                <div key={i} className="text-xs tabular-nums" dir="ltr">صك {a.check_number} — {fmtVal(Number(a.amount))}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AuditLogViewer() {
   const [page, setPage] = useState(0);
   const [entityType, setEntityType] = useState<string>("all");
@@ -302,6 +381,7 @@ function AuditLogViewer() {
   const [actor, setActor] = useState<string>("");
   const [from, setFrom] = useState<string>("");
   const [to, setTo] = useState<string>("");
+  const [detailRow, setDetailRow] = useState<any | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["audit-log", page, entityType, action, actor, from, to],
@@ -336,6 +416,10 @@ function AuditLogViewer() {
   const total = data?.count ?? 0;
   const pages = Math.ceil(total / PAGE_SIZE);
 
+  const actionLabels: Record<string, string> = {
+    create: "إنشاء", update: "تعديل", delete: "حذف", reverse: "عكس", approve: "اعتماد", cancel: "إلغاء",
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -351,6 +435,7 @@ function AuditLogViewer() {
               <SelectItem value="funding_check">صك تمويل</SelectItem>
               <SelectItem value="funder">ممول</SelectItem>
               <SelectItem value="project">مشروع</SelectItem>
+              <SelectItem value="withdrawal">مسحوبة</SelectItem>
             </SelectContent>
           </Select>
           <Select value={action} onValueChange={(v) => { setAction(v); setPage(0); }}>
@@ -376,23 +461,32 @@ function AuditLogViewer() {
               <TableHead>الإجراء</TableHead>
               <TableHead>الكيان</TableHead>
               <TableHead>المعرّف</TableHead>
+              <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={5} className="text-center py-6"><Loader2 className="size-4 animate-spin inline" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="text-center py-6"><Loader2 className="size-4 animate-spin inline" /></TableCell></TableRow>
             ) : data?.rows.length === 0 ? (
-              <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">لا توجد سجلات</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">لا توجد سجلات</TableCell></TableRow>
             ) : (
-              data?.rows.map((r) => (
-                <TableRow key={r.id as string}>
-                  <TableCell className="text-xs tabular-nums">{new Date(r.created_at as string).toLocaleString("ar")}</TableCell>
-                  <TableCell className="text-sm">{profiles?.get(r.actor_id as string) ?? (r.actor_id as string)?.slice(0, 8) ?? "—"}</TableCell>
-                  <TableCell><Badge variant="outline">{r.action as string}</Badge></TableCell>
-                  <TableCell className="text-sm">{r.entity_type as string}</TableCell>
-                  <TableCell className="text-xs font-mono">{(r.entity_id as string)?.slice(0, 8)}</TableCell>
-                </TableRow>
-              ))
+              data?.rows.map((r: any) => {
+                const hasDetail = r.payload && (r.payload.before || r.payload.after || r.payload.reason);
+                return (
+                  <TableRow key={r.id as string}>
+                    <TableCell className="text-xs tabular-nums">{new Date(r.created_at as string).toLocaleString("ar")}</TableCell>
+                    <TableCell className="text-sm">{profiles?.get(r.actor_id as string) ?? (r.actor_id as string)?.slice(0, 8) ?? "—"}</TableCell>
+                    <TableCell><Badge variant="outline">{actionLabels[r.action as string] ?? r.action}</Badge></TableCell>
+                    <TableCell className="text-sm">{r.entity_type as string}</TableCell>
+                    <TableCell className="text-xs font-mono">{(r.entity_id as string)?.slice(0, 8)}</TableCell>
+                    <TableCell>
+                      {hasDetail && (
+                        <Button size="sm" variant="ghost" onClick={() => setDetailRow(r)}>تفاصيل</Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -404,6 +498,39 @@ function AuditLogViewer() {
             <Button size="sm" variant="outline" disabled={page + 1 >= pages} onClick={() => setPage((p) => p + 1)}>التالي</Button>
           </div>
         </div>
+
+        <Dialog open={!!detailRow} onOpenChange={(o) => !o && setDetailRow(null)}>
+          <DialogContent dir="rtl" className="max-w-3xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                تفاصيل التغيير — {detailRow && (actionLabels[detailRow.action] ?? detailRow.action)} {detailRow?.entity_type}
+              </DialogTitle>
+            </DialogHeader>
+            {detailRow && (
+              <div className="space-y-3">
+                <div className="text-sm text-muted-foreground grid grid-cols-2 gap-2">
+                  <div>المستخدم: <span className="text-foreground">{profiles?.get(detailRow.actor_id) ?? "—"}</span></div>
+                  <div>التاريخ: <span className="text-foreground">{new Date(detailRow.created_at).toLocaleString("ar")}</span></div>
+                </div>
+                {detailRow.payload?.reason && (
+                  <div className="rounded-md border bg-destructive/5 p-2 text-sm">
+                    <span className="text-muted-foreground">السبب: </span>{detailRow.payload.reason}
+                  </div>
+                )}
+                {detailRow.payload?.before && detailRow.payload?.after ? (
+                  <DiffView before={detailRow.payload.before} after={detailRow.payload.after} />
+                ) : detailRow.payload?.before ? (
+                  <div>
+                    <div className="text-sm font-medium mb-2">القيم قبل الحذف:</div>
+                    <DiffView before={detailRow.payload.before} after={detailRow.payload.before} />
+                  </div>
+                ) : (
+                  <pre className="text-xs bg-muted/40 p-3 rounded-md overflow-auto" dir="ltr">{JSON.stringify(detailRow.payload, null, 2)}</pre>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
