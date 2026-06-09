@@ -33,7 +33,14 @@ function ExpensesPage() {
   const canDelete = can("expenses.delete");
   const [search, setSearch] = useState("");
   const [editingExp, setEditingExp] = useState<any | null>(null);
-  const [editForm, setEditForm] = useState({ description: "", expense_date: "" });
+  const [editForm, setEditForm] = useState({
+    expense_scope: "project" as "project" | "asset" | "general",
+    project_id: "", asset_id: "", asset_expense_type: "maintenance",
+    asset_cost_treatment: "operating_expense" as "operating_expense" | "capital_improvement",
+    category_id: "", amount: "", expense_date: "", description: "",
+  });
+  const [editAllocations, setEditAllocations] = useState<Allocation[]>([{ funding_check_id: "", amount: "" }]);
+  const [editBusy, setEditBusy] = useState(false);
   const [reversing, setReversing] = useState<any | null>(null);
   const [reverseReason, setReverseReason] = useState("");
   const [filterProject, setFilterProject] = useState("all");
@@ -195,22 +202,62 @@ function ExpensesPage() {
 
   function openEditExp(e: any) {
     setEditingExp(e);
-    setEditForm({ description: e.description ?? "", expense_date: e.expense_date });
+    setEditForm({
+      expense_scope: (e.expense_scope ?? "project"),
+      project_id: e.project_id ?? "",
+      asset_id: e.asset_id ?? "",
+      asset_expense_type: e.asset_expense_type ?? "maintenance",
+      asset_cost_treatment: e.asset_cost_treatment ?? "operating_expense",
+      category_id: e.category_id ?? "",
+      amount: String(e.amount ?? ""),
+      expense_date: e.expense_date,
+      description: e.description ?? "",
+    });
+    setEditAllocations(
+      (e.expense_funding_allocations ?? []).length
+        ? e.expense_funding_allocations.map((a: any) => ({
+            funding_check_id: a.funding_check_id ?? (a.funding_checks?.id ?? ""),
+            amount: String(a.amount),
+          }))
+        : [{ funding_check_id: "", amount: "" }]
+    );
   }
+
+  const editAmountNum = Number(editForm.amount) || 0;
+  const editAllocTotal = editAllocations.reduce((s, a) => s + (Number(a.amount) || 0), 0);
+  const editMismatch = editAmountNum > 0 && Math.round(editAllocTotal * 100) !== Math.round(editAmountNum * 100);
 
   async function onSaveEditExp(ev: React.FormEvent) {
     ev.preventDefault();
     if (!editingExp) return;
-    const { error } = await supabase.from("expenses").update({
-      description: editForm.description || null,
-      expense_date: editForm.expense_date,
-      updated_at: new Date().toISOString(),
-      updated_by: user!.id,
-    }).eq("id", editingExp.id);
-    if (error) return toast.error("فشل التعديل", { description: error.message });
-    toast.success("تم تحديث المصروف");
-    setEditingExp(null);
-    qc.invalidateQueries({ queryKey: ["expenses"] });
+    if (editMismatch) return toast.error("مجموع التخصيصات لا يساوي المبلغ");
+    if (editAllocations.some((a) => !a.funding_check_id || !a.amount)) return toast.error("أكمل بيانات التخصيصات");
+    if (editForm.expense_scope === "project" && !editForm.project_id) return toast.error("اختر المشروع");
+    if (editForm.expense_scope === "asset" && !editForm.asset_id) return toast.error("اختر الأصل");
+    setEditBusy(true);
+    try {
+      const { error } = await supabase.rpc("update_expense_atomic", {
+        _expense_id: editingExp.id,
+        _expense_scope: editForm.expense_scope,
+        _project_id: editForm.expense_scope === "project" ? editForm.project_id : null,
+        _asset_id: editForm.expense_scope === "asset" ? editForm.asset_id : null,
+        _asset_expense_type: editForm.expense_scope === "asset" ? editForm.asset_expense_type : null,
+        _asset_cost_treatment: editForm.expense_scope === "asset" ? editForm.asset_cost_treatment : null,
+        _category_id: editForm.category_id,
+        _amount: Number(editForm.amount),
+        _expense_date: editForm.expense_date,
+        _description: editForm.description || "",
+        _allocations: editAllocations.map((a) => ({ funding_check_id: a.funding_check_id, amount: Number(a.amount) })),
+      } as any);
+      if (error) throw error;
+      toast.success("تم تحديث المصروف", { description: "تم تسجيل التغيير في سجل المراجعة" });
+      setEditingExp(null);
+      qc.invalidateQueries();
+    } catch (err: any) {
+      toast.error("فشل التعديل", { description: err.message });
+    } finally {
+      setEditBusy(false);
+    }
   }
 
   async function onConfirmReverse() {
