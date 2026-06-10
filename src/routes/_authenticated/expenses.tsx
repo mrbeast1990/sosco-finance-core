@@ -496,7 +496,8 @@ function ExpensesPage() {
                     <TableHead>التاريخ</TableHead>
                     <TableHead>المشروع</TableHead>
                     <TableHead>الفئة</TableHead>
-                    <TableHead>حساب الدفع</TableHead>
+                    <TableHead>الحالة</TableHead>
+                    <TableHead>حساب الدفع / الدائن</TableHead>
                     <TableHead>الصكوك</TableHead>
                     <TableHead>الوصف</TableHead>
                     <TableHead className="text-left">المبلغ</TableHead>
@@ -509,8 +510,15 @@ function ExpensesPage() {
                       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{formatDate(e.expense_date)}</TableCell>
                       <TableCell><div className="font-medium">{e.projects?.name}</div><div className="text-xs text-muted-foreground tabular-nums" dir="ltr">{e.projects?.code}</div></TableCell>
                       <TableCell>{e.expense_categories?.name}</TableCell>
+                      <TableCell>
+                        {e.payment_status === "payable"
+                          ? <Badge variant="outline" className="border-amber-500/50 text-amber-700 dark:text-amber-400">آجل</Badge>
+                          : <Badge variant="secondary">مدفوع</Badge>}
+                      </TableCell>
                       <TableCell className="text-xs">
-                        {Array.from(new Set((e.expense_funding_allocations ?? []).map((a: any) => a.funding_checks?.cash_accounts?.name).filter(Boolean))).join("، ") || "—"}
+                        {e.payment_status === "payable"
+                          ? <span className="text-amber-700 dark:text-amber-400">{e.creditor_name ?? "—"}</span>
+                          : (Array.from(new Set((e.expense_funding_allocations ?? []).map((a: any) => a.funding_checks?.cash_accounts?.name).filter(Boolean))).join("، ") || "—")}
                       </TableCell>
                       <TableCell className="tabular-nums text-xs whitespace-nowrap" dir="ltr">
                         {(e.expense_funding_allocations ?? []).map((a: any) => a.funding_checks?.check_number).filter(Boolean).join("، ") || "—"}
@@ -529,7 +537,7 @@ function ExpensesPage() {
                               <FileSpreadsheet className="size-3.5 text-success" />
                             </Button>
                           )}
-                          {canEdit && (
+                          {canEdit && e.payment_status !== "payable" && (
                             <Button size="sm" variant="ghost" onClick={() => openEditExp(e)} title="تعديل">
                               <Pencil className="size-3.5" />
                             </Button>
