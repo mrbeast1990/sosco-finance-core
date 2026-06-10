@@ -218,6 +218,9 @@ function ExpensesPage() {
       amount: String(e.amount ?? ""),
       expense_date: e.expense_date,
       description: e.description ?? "",
+      payment_status: (e.payment_status ?? "paid"),
+      creditor_name: e.creditor_name ?? "",
+      due_date: e.due_date ?? "",
     });
     setEditAllocations(
       (e.expense_funding_allocations ?? []).length
