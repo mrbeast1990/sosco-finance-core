@@ -133,13 +133,19 @@ function ExpensesPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (allocMismatch) return toast.error("مجموع التخصيصات لا يساوي مبلغ المصروف");
-    if (allocations.some((a) => !a.funding_check_id || !a.amount)) return toast.error("أكمل بيانات التخصيصات");
+    const isPayable = form.payment_status === "payable";
+    if (isPayable) {
+      if (!form.creditor_name.trim()) return toast.error("أدخل اسم الدائن");
+    } else {
+      if (allocMismatch) return toast.error("مجموع التخصيصات لا يساوي مبلغ المصروف");
+      if (allocations.some((a) => !a.funding_check_id || !a.amount)) return toast.error("أكمل بيانات التخصيصات");
+    }
     if (form.expense_scope === "project" && !form.project_id) return toast.error("اختر المشروع");
     if (form.expense_scope === "asset" && !form.asset_id) return toast.error("اختر الأصل");
 
-    // Offline: queue the create (no file uploads possible without network)
+    // Offline: queue only paid expenses (payable needs immediate validation/AP entry)
     if (!online) {
+      if (isPayable) return toast.error("المصروف الآجل يتطلب اتصالاً بالإنترنت");
       if (file || excelFile) return toast.error("لا يمكن رفع المرفقات أوفلاين", { description: "احفظ بدون مرفقات أو انتظر عودة الاتصال" });
       try {
         const projName = (projects ?? []).find((p: any) => p.id === form.project_id)?.name ?? "";
@@ -181,7 +187,10 @@ function ExpensesPage() {
         if (up.error) throw up.error;
         excel_attachment_url = up.data.path;
       }
-      const { error } = await supabase.rpc("create_expense_v2", {
+      const { error } = await supabase.rpc("create_expense_v3", {
+        _payment_status: form.payment_status,
+        _creditor_name: isPayable ? form.creditor_name.trim() : null,
+        _due_date: isPayable && form.due_date ? form.due_date : null,
         _expense_scope: form.expense_scope,
         _project_id: form.expense_scope === "project" ? form.project_id : null,
         _asset_id: form.expense_scope === "asset" ? form.asset_id : null,
@@ -192,11 +201,13 @@ function ExpensesPage() {
         _expense_date: form.expense_date,
         _description: form.description || "",
         _attachment_url: attachment_url ?? "",
-        _allocations: allocations.map((a) => ({ funding_check_id: a.funding_check_id, amount: Number(a.amount) })),
+        _allocations: isPayable ? [] : allocations.map((a) => ({ funding_check_id: a.funding_check_id, amount: Number(a.amount) })),
         _excel_attachment_url: excel_attachment_url,
       } as any);
       if (error) throw error;
-      toast.success("تم تسجيل المصروف", { description: "تم إنشاء قيد محاسبي وتخصيصات التمويل" });
+      toast.success(isPayable ? "تم تسجيل المصروف الآجل" : "تم تسجيل المصروف", {
+        description: isPayable ? "تم إنشاء ذمة دائنة بدون خصم النقد" : "تم إنشاء قيد محاسبي وتخصيصات التمويل",
+      });
       setOpen(false);
       qc.invalidateQueries();
     } catch (err: any) {
