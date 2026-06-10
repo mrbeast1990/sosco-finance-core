@@ -39,6 +39,8 @@ function ExpensesPage() {
     project_id: "", asset_id: "", asset_expense_type: "maintenance",
     asset_cost_treatment: "operating_expense" as "operating_expense" | "capital_improvement",
     category_id: "", amount: "", expense_date: "", description: "",
+    payment_status: "paid" as "paid" | "payable",
+    creditor_name: "", due_date: "",
   });
   const [editAllocations, setEditAllocations] = useState<Allocation[]>([{ funding_check_id: "", amount: "" }]);
   const [editBusy, setEditBusy] = useState(false);
@@ -55,6 +57,8 @@ function ExpensesPage() {
     asset_cost_treatment: "operating_expense" as "operating_expense" | "capital_improvement",
     category_id: "",
     amount: "", expense_date: new Date().toISOString().slice(0, 10), description: "",
+    payment_status: "paid" as "paid" | "payable",
+    creditor_name: "", due_date: "",
   });
   const [allocations, setAllocations] = useState<Allocation[]>([{ funding_check_id: "", amount: "" }]);
 
