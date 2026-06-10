@@ -395,6 +395,8 @@ function ExpensesPage() {
                   <Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" />
                 </div>
 
+                {form.payment_status === "paid" && (
+                  <>
                 <div className="space-y-2 rounded-md border p-3">
                   <div className="flex items-center justify-between">
                     <Label>تخصيص مصادر التمويل</Label>
@@ -410,7 +412,7 @@ function ExpensesPage() {
                         <div>
                           <Select value={a.funding_check_id} onValueChange={(v) => {
                             const next = [...allocations]; next[i] = { ...next[i], funding_check_id: v }; setAllocations(next);
-                          }} required>
+                          }}>
                             <SelectTrigger><SelectValue placeholder="اختر صك تمويل" /></SelectTrigger>
                             <SelectContent>{(checks ?? []).map((x: any) => {
                               const r = Number(x.amount) - (spentMap?.[x.id] ?? 0);
@@ -421,7 +423,7 @@ function ExpensesPage() {
                         </div>
                         <Input type="number" step="0.01" min="0.01" placeholder="المبلغ" value={a.amount} onChange={(e) => {
                           const next = [...allocations]; next[i] = { ...next[i], amount: e.target.value }; setAllocations(next);
-                        }} dir="ltr" required />
+                        }} dir="ltr" />
                         {allocations.length > 1 && (
                           <Button type="button" variant="ghost" size="icon" onClick={() => setAllocations(allocations.filter((_, j) => j !== i))}>
                             <X className="size-4" />
@@ -448,6 +450,8 @@ function ExpensesPage() {
                       ))}
                     </ul>
                   </div>
+                )}
+                  </>
                 )}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label>التاريخ</Label>
