@@ -110,6 +110,7 @@ function ExpensesPage() {
       asset_expense_type: "maintenance", asset_cost_treatment: "operating_expense",
       category_id: "", amount: "",
       expense_date: new Date().toISOString().slice(0, 10), description: "",
+      payment_status: "paid", creditor_name: "", due_date: "",
     });
     setAllocations([{ funding_check_id: "", amount: "" }]);
     setFile(null);
