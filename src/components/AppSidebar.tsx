@@ -1,7 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard, Briefcase, Users, Receipt, Wallet, Boxes,
-  BookOpen, Network, BarChart3, LogOut, Building2, Settings, ShieldCheck, CloudUpload,
+  BookOpen, Network, BarChart3, LogOut, Building2, Settings, ShieldCheck, CloudUpload, FileClock,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -24,6 +24,7 @@ const groups = [
     items: [
       { title: "المصروفات", url: "/expenses", icon: Receipt, perm: "expenses.view" },
       { title: "المسحوبات", url: "/withdrawals", icon: Wallet, perm: "withdrawals.view" },
+      { title: "الذمم الدائنة", url: "/payables", icon: FileClock, perm: "payables.view" },
       { title: "الأصول", url: "/assets-registry", icon: Boxes, perm: "assets.view" },
       { title: "القيود اليومية", url: "/journal-entries", icon: BookOpen, perm: "journal.view" },
     ],

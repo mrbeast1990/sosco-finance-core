@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Paperclip, X, FileSpreadsheet, Pencil, Undo2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -38,6 +39,8 @@ function ExpensesPage() {
     project_id: "", asset_id: "", asset_expense_type: "maintenance",
     asset_cost_treatment: "operating_expense" as "operating_expense" | "capital_improvement",
     category_id: "", amount: "", expense_date: "", description: "",
+    payment_status: "paid" as "paid" | "payable",
+    creditor_name: "", due_date: "",
   });
   const [editAllocations, setEditAllocations] = useState<Allocation[]>([{ funding_check_id: "", amount: "" }]);
   const [editBusy, setEditBusy] = useState(false);
@@ -54,6 +57,8 @@ function ExpensesPage() {
     asset_cost_treatment: "operating_expense" as "operating_expense" | "capital_improvement",
     category_id: "",
     amount: "", expense_date: new Date().toISOString().slice(0, 10), description: "",
+    payment_status: "paid" as "paid" | "payable",
+    creditor_name: "", due_date: "",
   });
   const [allocations, setAllocations] = useState<Allocation[]>([{ funding_check_id: "", amount: "" }]);
 
@@ -105,6 +110,7 @@ function ExpensesPage() {
       asset_expense_type: "maintenance", asset_cost_treatment: "operating_expense",
       category_id: "", amount: "",
       expense_date: new Date().toISOString().slice(0, 10), description: "",
+      payment_status: "paid", creditor_name: "", due_date: "",
     });
     setAllocations([{ funding_check_id: "", amount: "" }]);
     setFile(null);
@@ -127,13 +133,19 @@ function ExpensesPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (allocMismatch) return toast.error("مجموع التخصيصات لا يساوي مبلغ المصروف");
-    if (allocations.some((a) => !a.funding_check_id || !a.amount)) return toast.error("أكمل بيانات التخصيصات");
+    const isPayable = form.payment_status === "payable";
+    if (isPayable) {
+      if (!form.creditor_name.trim()) return toast.error("أدخل اسم الدائن");
+    } else {
+      if (allocMismatch) return toast.error("مجموع التخصيصات لا يساوي مبلغ المصروف");
+      if (allocations.some((a) => !a.funding_check_id || !a.amount)) return toast.error("أكمل بيانات التخصيصات");
+    }
     if (form.expense_scope === "project" && !form.project_id) return toast.error("اختر المشروع");
     if (form.expense_scope === "asset" && !form.asset_id) return toast.error("اختر الأصل");
 
-    // Offline: queue the create (no file uploads possible without network)
+    // Offline: queue only paid expenses (payable needs immediate validation/AP entry)
     if (!online) {
+      if (isPayable) return toast.error("المصروف الآجل يتطلب اتصالاً بالإنترنت");
       if (file || excelFile) return toast.error("لا يمكن رفع المرفقات أوفلاين", { description: "احفظ بدون مرفقات أو انتظر عودة الاتصال" });
       try {
         const projName = (projects ?? []).find((p: any) => p.id === form.project_id)?.name ?? "";
@@ -175,7 +187,10 @@ function ExpensesPage() {
         if (up.error) throw up.error;
         excel_attachment_url = up.data.path;
       }
-      const { error } = await supabase.rpc("create_expense_v2", {
+      const { error } = await supabase.rpc("create_expense_v3", {
+        _payment_status: form.payment_status,
+        _creditor_name: isPayable ? form.creditor_name.trim() : null,
+        _due_date: isPayable && form.due_date ? form.due_date : null,
         _expense_scope: form.expense_scope,
         _project_id: form.expense_scope === "project" ? form.project_id : null,
         _asset_id: form.expense_scope === "asset" ? form.asset_id : null,
@@ -186,11 +201,13 @@ function ExpensesPage() {
         _expense_date: form.expense_date,
         _description: form.description || "",
         _attachment_url: attachment_url ?? "",
-        _allocations: allocations.map((a) => ({ funding_check_id: a.funding_check_id, amount: Number(a.amount) })),
+        _allocations: isPayable ? [] : allocations.map((a) => ({ funding_check_id: a.funding_check_id, amount: Number(a.amount) })),
         _excel_attachment_url: excel_attachment_url,
       } as any);
       if (error) throw error;
-      toast.success("تم تسجيل المصروف", { description: "تم إنشاء قيد محاسبي وتخصيصات التمويل" });
+      toast.success(isPayable ? "تم تسجيل المصروف الآجل" : "تم تسجيل المصروف", {
+        description: isPayable ? "تم إنشاء ذمة دائنة بدون خصم النقد" : "تم إنشاء قيد محاسبي وتخصيصات التمويل",
+      });
       setOpen(false);
       qc.invalidateQueries();
     } catch (err: any) {
@@ -212,6 +229,9 @@ function ExpensesPage() {
       amount: String(e.amount ?? ""),
       expense_date: e.expense_date,
       description: e.description ?? "",
+      payment_status: (e.payment_status ?? "paid"),
+      creditor_name: e.creditor_name ?? "",
+      due_date: e.due_date ?? "",
     });
     setEditAllocations(
       (e.expense_funding_allocations ?? []).length
@@ -287,18 +307,45 @@ function ExpensesPage() {
             <DialogTrigger asChild><Button onClick={openNew}><Plus className="size-4" /> مصروف جديد</Button></DialogTrigger>
             <DialogContent dir="rtl" className="max-w-2xl">
               <DialogHeader><DialogTitle>تسجيل مصروف جديد</DialogTitle></DialogHeader>
-              <form onSubmit={onSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>نوع الارتباط</Label>
-                  <Select value={form.expense_scope} onValueChange={(v: any) => setForm({ ...form, expense_scope: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="project">مشروع</SelectItem>
-                      <SelectItem value="asset">أصل</SelectItem>
-                      <SelectItem value="general">مصروف عام</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <form onSubmit={onSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>حالة الدفع</Label>
+                    <Select value={form.payment_status} onValueChange={(v: any) => setForm({ ...form, payment_status: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="paid">مدفوع (يخصم من النقد)</SelectItem>
+                        <SelectItem value="payable">آجل / ذمة دائنة</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>نوع الارتباط</Label>
+                    <Select value={form.expense_scope} onValueChange={(v: any) => setForm({ ...form, expense_scope: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="project">مشروع</SelectItem>
+                        <SelectItem value="asset">أصل</SelectItem>
+                        <SelectItem value="general">مصروف عام</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
+                {form.payment_status === "payable" && (
+                  <div className="grid grid-cols-2 gap-3 rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
+                    <div className="space-y-2 col-span-2 text-xs text-amber-700 dark:text-amber-400">
+                      💳 لن يتم خصم أي رصيد نقدي. سيتم تسجيل الذمة كدائنة وتدفع لاحقاً من شاشة الذمم الدائنة.
+                    </div>
+                    <div className="space-y-2">
+                      <Label>اسم الدائن / المورد *</Label>
+                      <Input required value={form.creditor_name} onChange={(e) => setForm({ ...form, creditor_name: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>تاريخ الاستحقاق (اختياري)</Label>
+                      <Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   {form.expense_scope === "project" && (
                     <div className="space-y-2"><Label>المشروع</Label>
@@ -348,6 +395,8 @@ function ExpensesPage() {
                   <Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" />
                 </div>
 
+                {form.payment_status === "paid" && (
+                  <>
                 <div className="space-y-2 rounded-md border p-3">
                   <div className="flex items-center justify-between">
                     <Label>تخصيص مصادر التمويل</Label>
@@ -363,7 +412,7 @@ function ExpensesPage() {
                         <div>
                           <Select value={a.funding_check_id} onValueChange={(v) => {
                             const next = [...allocations]; next[i] = { ...next[i], funding_check_id: v }; setAllocations(next);
-                          }} required>
+                          }}>
                             <SelectTrigger><SelectValue placeholder="اختر صك تمويل" /></SelectTrigger>
                             <SelectContent>{(checks ?? []).map((x: any) => {
                               const r = Number(x.amount) - (spentMap?.[x.id] ?? 0);
@@ -374,7 +423,7 @@ function ExpensesPage() {
                         </div>
                         <Input type="number" step="0.01" min="0.01" placeholder="المبلغ" value={a.amount} onChange={(e) => {
                           const next = [...allocations]; next[i] = { ...next[i], amount: e.target.value }; setAllocations(next);
-                        }} dir="ltr" required />
+                        }} dir="ltr" />
                         {allocations.length > 1 && (
                           <Button type="button" variant="ghost" size="icon" onClick={() => setAllocations(allocations.filter((_, j) => j !== i))}>
                             <X className="size-4" />
@@ -401,6 +450,8 @@ function ExpensesPage() {
                       ))}
                     </ul>
                   </div>
+                )}
+                  </>
                 )}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label>التاريخ</Label>
@@ -445,7 +496,8 @@ function ExpensesPage() {
                     <TableHead>التاريخ</TableHead>
                     <TableHead>المشروع</TableHead>
                     <TableHead>الفئة</TableHead>
-                    <TableHead>حساب الدفع</TableHead>
+                    <TableHead>الحالة</TableHead>
+                    <TableHead>حساب الدفع / الدائن</TableHead>
                     <TableHead>الصكوك</TableHead>
                     <TableHead>الوصف</TableHead>
                     <TableHead className="text-left">المبلغ</TableHead>
@@ -458,8 +510,15 @@ function ExpensesPage() {
                       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{formatDate(e.expense_date)}</TableCell>
                       <TableCell><div className="font-medium">{e.projects?.name}</div><div className="text-xs text-muted-foreground tabular-nums" dir="ltr">{e.projects?.code}</div></TableCell>
                       <TableCell>{e.expense_categories?.name}</TableCell>
+                      <TableCell>
+                        {e.payment_status === "payable"
+                          ? <Badge variant="outline" className="border-amber-500/50 text-amber-700 dark:text-amber-400">آجل</Badge>
+                          : <Badge variant="secondary">مدفوع</Badge>}
+                      </TableCell>
                       <TableCell className="text-xs">
-                        {Array.from(new Set((e.expense_funding_allocations ?? []).map((a: any) => a.funding_checks?.cash_accounts?.name).filter(Boolean))).join("، ") || "—"}
+                        {e.payment_status === "payable"
+                          ? <span className="text-amber-700 dark:text-amber-400">{e.creditor_name ?? "—"}</span>
+                          : (Array.from(new Set((e.expense_funding_allocations ?? []).map((a: any) => a.funding_checks?.cash_accounts?.name).filter(Boolean))).join("، ") || "—")}
                       </TableCell>
                       <TableCell className="tabular-nums text-xs whitespace-nowrap" dir="ltr">
                         {(e.expense_funding_allocations ?? []).map((a: any) => a.funding_checks?.check_number).filter(Boolean).join("، ") || "—"}
@@ -478,7 +537,7 @@ function ExpensesPage() {
                               <FileSpreadsheet className="size-3.5 text-success" />
                             </Button>
                           )}
-                          {canEdit && (
+                          {canEdit && e.payment_status !== "payable" && (
                             <Button size="sm" variant="ghost" onClick={() => openEditExp(e)} title="تعديل">
                               <Pencil className="size-3.5" />
                             </Button>

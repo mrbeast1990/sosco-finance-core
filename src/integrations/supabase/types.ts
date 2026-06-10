@@ -262,13 +262,16 @@ export type Database = {
           category_id: string
           created_at: string
           created_by: string | null
+          creditor_name: string | null
           deleted_at: string | null
           description: string | null
+          due_date: string | null
           excel_attachment_url: string | null
           expense_date: string
           expense_scope: string
           id: string
           journal_entry_id: string | null
+          payment_status: string
           project_id: string | null
           updated_at: string | null
           updated_by: string | null
@@ -282,13 +285,16 @@ export type Database = {
           category_id: string
           created_at?: string
           created_by?: string | null
+          creditor_name?: string | null
           deleted_at?: string | null
           description?: string | null
+          due_date?: string | null
           excel_attachment_url?: string | null
           expense_date?: string
           expense_scope?: string
           id?: string
           journal_entry_id?: string | null
+          payment_status?: string
           project_id?: string | null
           updated_at?: string | null
           updated_by?: string | null
@@ -302,13 +308,16 @@ export type Database = {
           category_id?: string
           created_at?: string
           created_by?: string | null
+          creditor_name?: string | null
           deleted_at?: string | null
           description?: string | null
+          due_date?: string | null
           excel_attachment_url?: string | null
           expense_date?: string
           expense_scope?: string
           id?: string
           journal_entry_id?: string | null
+          payment_status?: string
           project_id?: string | null
           updated_at?: string | null
           updated_by?: string | null
@@ -621,6 +630,130 @@ export type Database = {
           },
         ]
       }
+      payable_payments: {
+        Row: {
+          amount: number
+          attachment_url: string | null
+          cash_account_id: string | null
+          created_at: string
+          created_by: string | null
+          funding_check_id: string | null
+          id: string
+          journal_entry_id: string | null
+          notes: string | null
+          payable_id: string
+          payment_date: string
+          payment_method: string
+        }
+        Insert: {
+          amount: number
+          attachment_url?: string | null
+          cash_account_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          funding_check_id?: string | null
+          id?: string
+          journal_entry_id?: string | null
+          notes?: string | null
+          payable_id: string
+          payment_date: string
+          payment_method: string
+        }
+        Update: {
+          amount?: number
+          attachment_url?: string | null
+          cash_account_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          funding_check_id?: string | null
+          id?: string
+          journal_entry_id?: string | null
+          notes?: string | null
+          payable_id?: string
+          payment_date?: string
+          payment_method?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payable_payments_cash_account_id_fkey"
+            columns: ["cash_account_id"]
+            isOneToOne: false
+            referencedRelation: "cash_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payable_payments_funding_check_id_fkey"
+            columns: ["funding_check_id"]
+            isOneToOne: false
+            referencedRelation: "funding_checks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payable_payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payable_payments_payable_id_fkey"
+            columns: ["payable_id"]
+            isOneToOne: false
+            referencedRelation: "payables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payables: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          creditor_name: string
+          due_date: string | null
+          expense_id: string
+          id: string
+          notes: string | null
+          original_amount: number
+          paid_amount: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          creditor_name: string
+          due_date?: string | null
+          expense_id: string
+          id?: string
+          notes?: string | null
+          original_amount: number
+          paid_amount?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          creditor_name?: string
+          due_date?: string | null
+          expense_id?: string
+          id?: string
+          notes?: string | null
+          original_amount?: number
+          paid_amount?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payables_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: true
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       permissions: {
         Row: {
           code: string
@@ -848,6 +981,26 @@ export type Database = {
         }
         Returns: string
       }
+      create_expense_v3: {
+        Args: {
+          _allocations: Json
+          _amount: number
+          _asset_cost_treatment: string
+          _asset_expense_type: string
+          _asset_id: string
+          _attachment_url: string
+          _category_id: string
+          _creditor_name: string
+          _description: string
+          _due_date: string
+          _excel_attachment_url?: string
+          _expense_date: string
+          _expense_scope: string
+          _payment_status: string
+          _project_id: string
+        }
+        Returns: string
+      }
       create_withdrawal_atomic: {
         Args: {
           _amount: number
@@ -873,6 +1026,19 @@ export type Database = {
         Returns: {
           code: string
         }[]
+      }
+      pay_payable_atomic: {
+        Args: {
+          _amount: number
+          _attachment_url: string
+          _cash_account_id: string
+          _funding_check_id: string
+          _notes: string
+          _payable_id: string
+          _payment_date: string
+          _payment_method: string
+        }
+        Returns: string
       }
       reverse_expense_atomic: {
         Args: { _expense_id: string; _reason: string }
