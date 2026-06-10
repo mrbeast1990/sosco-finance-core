@@ -307,18 +307,45 @@ function ExpensesPage() {
             <DialogTrigger asChild><Button onClick={openNew}><Plus className="size-4" /> مصروف جديد</Button></DialogTrigger>
             <DialogContent dir="rtl" className="max-w-2xl">
               <DialogHeader><DialogTitle>تسجيل مصروف جديد</DialogTitle></DialogHeader>
-              <form onSubmit={onSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>نوع الارتباط</Label>
-                  <Select value={form.expense_scope} onValueChange={(v: any) => setForm({ ...form, expense_scope: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="project">مشروع</SelectItem>
-                      <SelectItem value="asset">أصل</SelectItem>
-                      <SelectItem value="general">مصروف عام</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <form onSubmit={onSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>حالة الدفع</Label>
+                    <Select value={form.payment_status} onValueChange={(v: any) => setForm({ ...form, payment_status: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="paid">مدفوع (يخصم من النقد)</SelectItem>
+                        <SelectItem value="payable">آجل / ذمة دائنة</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>نوع الارتباط</Label>
+                    <Select value={form.expense_scope} onValueChange={(v: any) => setForm({ ...form, expense_scope: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="project">مشروع</SelectItem>
+                        <SelectItem value="asset">أصل</SelectItem>
+                        <SelectItem value="general">مصروف عام</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
+                {form.payment_status === "payable" && (
+                  <div className="grid grid-cols-2 gap-3 rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
+                    <div className="space-y-2 col-span-2 text-xs text-amber-700 dark:text-amber-400">
+                      💳 لن يتم خصم أي رصيد نقدي. سيتم تسجيل الذمة كدائنة وتدفع لاحقاً من شاشة الذمم الدائنة.
+                    </div>
+                    <div className="space-y-2">
+                      <Label>اسم الدائن / المورد *</Label>
+                      <Input required value={form.creditor_name} onChange={(e) => setForm({ ...form, creditor_name: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>تاريخ الاستحقاق (اختياري)</Label>
+                      <Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   {form.expense_scope === "project" && (
                     <div className="space-y-2"><Label>المشروع</Label>
