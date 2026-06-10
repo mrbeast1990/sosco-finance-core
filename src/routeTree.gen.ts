@@ -17,6 +17,7 @@ import { Route as AuthenticatedWithdrawalsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
 import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticated/projects'
+import { Route as AuthenticatedPayablesRouteImport } from './routes/_authenticated/payables'
 import { Route as AuthenticatedOfflineQueueRouteImport } from './routes/_authenticated/offline-queue'
 import { Route as AuthenticatedJournalEntriesRouteImport } from './routes/_authenticated/journal-entries'
 import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
@@ -65,6 +66,11 @@ const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
 const AuthenticatedProjectsRoute = AuthenticatedProjectsRouteImport.update({
   id: '/projects',
   path: '/projects',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedPayablesRoute = AuthenticatedPayablesRouteImport.update({
+  id: '/payables',
+  path: '/payables',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedOfflineQueueRoute =
@@ -129,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/expenses': typeof AuthenticatedExpensesRoute
   '/journal-entries': typeof AuthenticatedJournalEntriesRoute
   '/offline-queue': typeof AuthenticatedOfflineQueueRoute
+  '/payables': typeof AuthenticatedPayablesRoute
   '/projects': typeof AuthenticatedProjectsRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -147,6 +154,7 @@ export interface FileRoutesByTo {
   '/expenses': typeof AuthenticatedExpensesRoute
   '/journal-entries': typeof AuthenticatedJournalEntriesRoute
   '/offline-queue': typeof AuthenticatedOfflineQueueRoute
+  '/payables': typeof AuthenticatedPayablesRoute
   '/projects': typeof AuthenticatedProjectsRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -167,6 +175,7 @@ export interface FileRoutesById {
   '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
   '/_authenticated/journal-entries': typeof AuthenticatedJournalEntriesRoute
   '/_authenticated/offline-queue': typeof AuthenticatedOfflineQueueRoute
+  '/_authenticated/payables': typeof AuthenticatedPayablesRoute
   '/_authenticated/projects': typeof AuthenticatedProjectsRoute
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
@@ -187,6 +196,7 @@ export interface FileRouteTypes {
     | '/expenses'
     | '/journal-entries'
     | '/offline-queue'
+    | '/payables'
     | '/projects'
     | '/reports'
     | '/settings'
@@ -205,6 +215,7 @@ export interface FileRouteTypes {
     | '/expenses'
     | '/journal-entries'
     | '/offline-queue'
+    | '/payables'
     | '/projects'
     | '/reports'
     | '/settings'
@@ -224,6 +235,7 @@ export interface FileRouteTypes {
     | '/_authenticated/expenses'
     | '/_authenticated/journal-entries'
     | '/_authenticated/offline-queue'
+    | '/_authenticated/payables'
     | '/_authenticated/projects'
     | '/_authenticated/reports'
     | '/_authenticated/settings'
@@ -295,6 +307,13 @@ declare module '@tanstack/react-router' {
       path: '/projects'
       fullPath: '/projects'
       preLoaderRoute: typeof AuthenticatedProjectsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/payables': {
+      id: '/_authenticated/payables'
+      path: '/payables'
+      fullPath: '/payables'
+      preLoaderRoute: typeof AuthenticatedPayablesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/offline-queue': {
@@ -371,6 +390,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
   AuthenticatedJournalEntriesRoute: typeof AuthenticatedJournalEntriesRoute
   AuthenticatedOfflineQueueRoute: typeof AuthenticatedOfflineQueueRoute
+  AuthenticatedPayablesRoute: typeof AuthenticatedPayablesRoute
   AuthenticatedProjectsRoute: typeof AuthenticatedProjectsRoute
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
@@ -387,6 +407,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,
   AuthenticatedJournalEntriesRoute: AuthenticatedJournalEntriesRoute,
   AuthenticatedOfflineQueueRoute: AuthenticatedOfflineQueueRoute,
+  AuthenticatedPayablesRoute: AuthenticatedPayablesRoute,
   AuthenticatedProjectsRoute: AuthenticatedProjectsRoute,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
