@@ -133,4 +133,52 @@
   }
   /* Numeric tabular for tables */
   table, .tabular-nums { font-variant-numeric: tabular-nums; }
+  /* Prevent dialogs and the app shell from leaking horizontal scroll on mobile */
+  body { overflow-x: hidden; }
 }
+
+/* ============================================
+   Print styles — used by reports export
+   ============================================ */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 10mm;
+  }
+  html, body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+  }
+  /* Hide app chrome */
+  [data-sidebar],
+  aside,
+  nav,
+  header[data-app-header],
+  .no-print,
+  button:not(.print-keep) {
+    display: none !important;
+  }
+  /* Expand main content */
+  main, .print-area {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+  .print-only { display: block !important; }
+  /* Table optimisations */
+  table { width: 100% !important; border-collapse: collapse; page-break-inside: auto; }
+  tr { page-break-inside: avoid; page-break-after: auto; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  th, td { border: 1px solid #999 !important; padding: 4px 6px !important; }
+  /* Avoid breaking inside cards/kpis */
+  .card, [data-card], .kpi { page-break-inside: avoid; }
+  /* Background and shadow flatten */
+  * { box-shadow: none !important; text-shadow: none !important; }
+}
+
+.print-only { display: none; }
+
