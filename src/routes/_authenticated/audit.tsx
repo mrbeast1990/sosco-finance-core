@@ -91,8 +91,9 @@ async function fetchAllIssues(): Promise<Issue[]> {
   // 2) Allocation integrity: SUM(allocations) == expense.amount (active only)
   const { data: expenses } = await supabase
     .from("expenses")
-    .select("id, amount, project_id, category_id, deleted_at")
+    .select("id, amount, project_id, category_id, asset_id, expense_scope, payment_status, deleted_at")
     .is("deleted_at", null);
+
   const { data: allocs } = await supabase
     .from("expense_funding_allocations")
     .select("expense_id, funding_check_id, amount");
