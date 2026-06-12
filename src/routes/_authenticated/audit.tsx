@@ -167,22 +167,60 @@ async function fetchAllIssues(): Promise<Issue[]> {
     }
   });
 
-  // 5) Expenses referencing missing project/category
+  // 5) Expenses referencing missing project/category/asset (scope-aware)
   const { data: projects } = await supabase.from("projects").select("id");
   const { data: categories } = await supabase.from("expense_categories").select("id");
+  const { data: assets } = await supabase.from("assets").select("id");
   const projIds = new Set((projects ?? []).map((p) => p.id as string));
   const catIds = new Set((categories ?? []).map((c) => c.id as string));
-  (expenses ?? []).forEach((e) => {
-    if (!projIds.has(e.project_id as string)) {
-      issues.push({
-        id: `orphan-e-p-${e.id}`,
-        severity: "warning",
-        category: "أيتام",
-        title: "مصروف بمشروع مفقود",
-        detail: `expense ${(e.id as string).slice(0, 8)}`,
-      });
+  const assetIds = new Set((assets ?? []).map((a) => a.id as string));
+  (expenses ?? []).forEach((e: any) => {
+    const scope = e.expense_scope ?? "project";
+
+    // Project validation — only for project-scope expenses
+    if (scope === "project") {
+      if (!e.project_id) {
+        issues.push({
+          id: `missing-e-p-${e.id}`,
+          severity: "critical",
+          category: "أيتام",
+          title: "مصروف مشروع بدون رقم مشروع",
+          detail: `expense ${(e.id as string).slice(0, 8)}`,
+        });
+      } else if (!projIds.has(e.project_id as string)) {
+        issues.push({
+          id: `orphan-e-p-${e.id}`,
+          severity: "warning",
+          category: "أيتام",
+          title: "مصروف بمشروع مفقود",
+          detail: `expense ${(e.id as string).slice(0, 8)}`,
+        });
+      }
     }
-    if (!catIds.has(e.category_id as string)) {
+
+    // Asset validation — only for asset-scope expenses
+    if (scope === "asset") {
+      if (!e.asset_id) {
+        issues.push({
+          id: `missing-e-a-${e.id}`,
+          severity: "critical",
+          category: "أيتام",
+          title: "مصروف أصل بدون رقم أصل",
+          detail: `expense ${(e.id as string).slice(0, 8)}`,
+        });
+      } else if (!assetIds.has(e.asset_id as string)) {
+        issues.push({
+          id: `orphan-e-a-${e.id}`,
+          severity: "warning",
+          category: "أيتام",
+          title: "مصروف بأصل مفقود",
+          detail: `expense ${(e.id as string).slice(0, 8)}`,
+        });
+      }
+    }
+
+    // Category validation — always required
+    if (!e.category_id || !catIds.has(e.category_id as string)) {
       issues.push({
         id: `orphan-e-c-${e.id}`,
         severity: "warning",
@@ -193,6 +231,7 @@ async function fetchAllIssues(): Promise<Issue[]> {
     }
     void expIds;
   });
+
 
   return issues;
 }
