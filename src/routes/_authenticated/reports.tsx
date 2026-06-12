@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,22 +13,46 @@ import { LoadingState, EmptyState } from "@/components/States";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from "recharts";
+import { useAuth } from "@/lib/auth";
+import { ProjectStatementReport } from "@/components/reports/ProjectStatementReport";
+import { CheckStatementReport } from "@/components/reports/CheckStatementReport";
+import { PayablesReport } from "@/components/reports/PayablesReport";
+import { CashFlowReport } from "@/components/reports/CashFlowReport";
 
 export const Route = createFileRoute("/_authenticated/reports")({ component: ReportsPage });
 
 const COLORS = ["oklch(0.6 0.13 195)", "oklch(0.62 0.15 155)", "oklch(0.7 0.15 60)", "oklch(0.55 0.2 25)", "oklch(0.5 0.15 285)", "oklch(0.5 0.1 320)"];
 
 function ReportsPage() {
+  const { can, isAdmin } = useAuth();
+  const nav = useNavigate();
+  const allowed = can("reports.view") || isAdmin;
+  const canFinancial = can("reports.financial") || isAdmin;
+
+  useEffect(() => {
+    if (!allowed) nav({ to: "/dashboard" });
+  }, [allowed, nav]);
+
+  if (!allowed) return null;
+
   return (
-    <div>
-      <PageHeader title="التقارير" description="تقارير شاملة عن التمويل والمصروفات وتتبع الصكوك والمشاريع" />
-      <Tabs defaultValue="tracker">
-        <TabsList>
+    <div dir="rtl">
+      <PageHeader title="التقارير" description="مركز التقارير المالية والإدارية" />
+      <Tabs defaultValue="project-statement" className="space-y-3">
+        <TabsList className="flex flex-wrap h-auto">
+          <TabsTrigger value="project-statement">كشف مشروع</TabsTrigger>
+          <TabsTrigger value="check-statement">كشف صك</TabsTrigger>
+          <TabsTrigger value="payables">الذمم الدائنة</TabsTrigger>
+          {canFinancial && <TabsTrigger value="cashflow">التدفق النقدي</TabsTrigger>}
           <TabsTrigger value="tracker">تتبع برقم</TabsTrigger>
-          <TabsTrigger value="funding">تقرير التمويل</TabsTrigger>
+          <TabsTrigger value="funding">التمويل</TabsTrigger>
           <TabsTrigger value="projects">مصروفات المشاريع</TabsTrigger>
           <TabsTrigger value="analysis">تحليل المصروفات</TabsTrigger>
         </TabsList>
+        <TabsContent value="project-statement"><ProjectStatementReport /></TabsContent>
+        <TabsContent value="check-statement"><CheckStatementReport /></TabsContent>
+        <TabsContent value="payables"><PayablesReport /></TabsContent>
+        {canFinancial && <TabsContent value="cashflow"><CashFlowReport /></TabsContent>}
         <TabsContent value="tracker"><Tracker /></TabsContent>
         <TabsContent value="funding"><FundingReport /></TabsContent>
         <TabsContent value="projects"><ProjectsReport /></TabsContent>
@@ -37,6 +61,7 @@ function ReportsPage() {
     </div>
   );
 }
+
 
 function Tracker() {
   const [q, setQ] = useState("");
