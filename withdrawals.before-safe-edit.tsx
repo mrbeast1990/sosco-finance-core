@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, CheckCircle2, XCircle, Paperclip, Wallet, Calendar, Pencil } from "lucide-react";
+import { Plus, Search, CheckCircle2, XCircle, Paperclip, Wallet, Calendar } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -42,7 +42,6 @@ function WithdrawalsPage() {
   const qc = useQueryClient();
   const { can, user } = useAuth();
   const canCreate = can("withdrawals.create");
-  const canEdit = can("withdrawals.update");
   const canApprove = can("withdrawals.approve");
   const canCancel = can("withdrawals.cancel");
 
@@ -69,9 +68,6 @@ function WithdrawalsPage() {
     description: "",
   };
   const [form, setForm] = useState(empty);
-  const [editing, setEditing] = useState<any | null>(null);
-  const [editForm, setEditForm] = useState(empty);
-  const [editBusy, setEditBusy] = useState(false);
 
   const { data: cashAccounts } = useQuery({
     queryKey: ["cash-sel"],
@@ -99,25 +95,6 @@ function WithdrawalsPage() {
       return { ...data, remaining };
     },
   });
-  const { data: editCheck } = useQuery({
-    queryKey: ["withdrawal-edit-check", editing?.id, editForm.funding_check_id],
-    enabled: !!editing && !!editForm.funding_check_id,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("funding_checks")
-        .select("id,check_number,amount,funders(name),cash_accounts(name)")
-        .eq("id", editForm.funding_check_id).single();
-      if (error) throw error;
-      const [remaining, allocation] = await Promise.all([
-        supabase.rpc("check_remaining", { _check_id: editForm.funding_check_id } as any),
-        (supabase as any).from("withdrawal_funding_allocations").select("amount,funding_check_id").eq("withdrawal_id", editing.id).maybeSingle(),
-      ]);
-      if (remaining.error) throw remaining.error;
-      if (allocation.error) throw allocation.error;
-      const available = Number(remaining.data ?? 0) + (allocation.data?.funding_check_id === editForm.funding_check_id ? Number(allocation.data.amount) : 0);
-      return { ...data, remaining: Number(remaining.data ?? 0), available };
-    },
-  });
-  const editBalanceError = editCheck && Number(editCheck.available) < Number(editing?.amount ?? 0) ? "رصيد الصك غير كافٍ" : undefined;
   const checkBalanceError = selectedCheck?.remaining != null && Number(selectedCheck.remaining) <= 0
     ? "رصيد الصك غير كافٍ"
     : selectedCheck?.remaining != null && Number(form.amount || 0) > Number(selectedCheck.remaining)
@@ -177,43 +154,6 @@ function WithdrawalsPage() {
   const totalAll = approved.reduce((s: number, w: any) => s + Number(w.amount), 0);
 
   function openNew() { setForm(empty); setFile(null); setOpen(true); }
-  function openEdit(w: any) {
-    setEditForm({
-      withdrawal_date: w.withdrawal_date,
-      person_name: w.person_name,
-      person_role: w.person_role,
-      amount: String(w.amount),
-      payment_method: w.payment_method,
-      cash_account_id: w.cash_account_id ?? "",
-      funding_check_id: w.funding_check_id ?? "",
-      project_id: w.project_id ?? "",
-      description: w.description ?? "",
-    });
-    setEditing(w);
-  }
-
-  async function onEditSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editing || editBalanceError) return;
-    setEditBusy(true);
-    const { error } = await (supabase as any).rpc("update_withdrawal_atomic", {
-      _id: editing.id,
-      _person_name: editForm.person_name,
-      _person_role: editForm.person_role,
-      _withdrawal_date: editForm.withdrawal_date,
-      _payment_method: editForm.payment_method,
-      _cash_account_id: editForm.cash_account_id || null,
-      _project_id: editForm.project_id || null,
-      _funding_check_id: editForm.funding_check_id || null,
-      _description: editForm.description || null,
-    });
-    setEditBusy(false);
-    if (error) return toast.error(error.message?.includes("رصيد الصك غير كافٍ") ? "رصيد الصك غير كافٍ" : "فشل تعديل المسحوبة", { description: error.message });
-    toast.success("تم تعديل المسحوبة وتحديث احتساب الصك");
-    setEditing(null);
-    qc.invalidateQueries({ queryKey: ["withdrawals"] });
-    qc.invalidateQueries({ queryKey: ["withdrawal-details"] });
-  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -449,11 +389,6 @@ function WithdrawalsPage() {
                         <TableCell className="text-left font-medium tabular-nums">{formatCurrency(w.amount)}</TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            {canEdit && w.status !== "cancelled" && (
-                              <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openEdit(w); }} title="تعديل">
-                                <Pencil className="size-3.5" />
-                              </Button>
-                            )}
                             {w.attachment_url && (
                               <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); downloadAttachment(w.attachment_url); }} title="مرفق">
                                 <Paperclip className="size-3.5" />
@@ -480,36 +415,6 @@ function WithdrawalsPage() {
           )}
         </CardContent>
       </Card>
-
-      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent dir="rtl" className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>تعديل المسحوبة</DialogTitle></DialogHeader>
-          {editing && (
-            <form onSubmit={onEditSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-2"><Label>اسم الشخص</Label><Input required value={editForm.person_name} onChange={(e) => setEditForm({ ...editForm, person_name: e.target.value })} /></div>
-                <div className="space-y-2"><Label>الصفة</Label><Select value={editForm.person_role} onValueChange={(v) => setEditForm({ ...editForm, person_role: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ROLES.map((r) => <SelectItem key={r.v} value={r.v}>{r.l}</SelectItem>)}</SelectContent></Select></div>
-                <div className="space-y-2"><Label>التاريخ</Label><Input required type="date" value={editForm.withdrawal_date} onChange={(e) => setEditForm({ ...editForm, withdrawal_date: e.target.value })} /></div>
-                <div className="space-y-2"><Label>المبلغ (غير قابل للتعديل)</Label><Input value={editForm.amount} readOnly disabled dir="ltr" /></div>
-                <div className="space-y-2"><Label>طريقة الدفع</Label><Select value={editForm.payment_method} onValueChange={(v) => setEditForm({ ...editForm, payment_method: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{METHODS.map((m) => <SelectItem key={m.v} value={m.v}>{m.l}</SelectItem>)}</SelectContent></Select></div>
-                <div className="space-y-2"><Label>حساب الصرف / الحساب البنكي</Label><Select value={editForm.cash_account_id || "none"} onValueChange={(v) => setEditForm({ ...editForm, cash_account_id: v === "none" ? "" : v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">— بدون —</SelectItem>{(cashAccounts ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
-                <div className="space-y-2"><Label>المشروع</Label><Select value={editForm.project_id || "none"} onValueChange={(v) => setEditForm({ ...editForm, project_id: v === "none" ? "" : v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">— بدون —</SelectItem>{(projects ?? []).map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
-                <div className="space-y-2"><Label>صك التمويل</Label><Select value={editForm.funding_check_id || "none"} onValueChange={(v) => setEditForm({ ...editForm, funding_check_id: v === "none" ? "" : v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">— بدون —</SelectItem>{(checks ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>صك {c.check_number} — {c.funders?.name}</SelectItem>)}</SelectContent></Select></div>
-              </div>
-              {editForm.funding_check_id && editCheck && (
-                <div className="rounded-lg border bg-muted/40 p-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
-                  <Detail label="رقم الصك" value={editCheck.check_number} /><Detail label="الممول" value={editCheck.funders?.name || "—"} /><Detail label="حساب الصرف" value={editCheck.cash_accounts?.name || "—"} />
-                  <Detail label="المبلغ الأصلي" value={formatCurrency(editCheck.amount)} /><Detail label="المستهلك" value={formatCurrency(Number(editCheck.amount) - Number(editCheck.remaining))} /><Detail label="المتبقي" value={formatCurrency(editCheck.remaining)} />
-                </div>
-              )}
-              <div className="space-y-2"><Label>الوصف / الملاحظات</Label><Textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} /></div>
-              {editBalanceError && <div className="text-sm font-medium text-destructive">رصيد الصك غير كافٍ</div>}
-              <div className="text-xs text-muted-foreground">الحالة والمبلغ غير قابلين للتعديل. سيتم تحديث تخصيص الصك للمسحوبات المعتمدة بشكل آمن.</div>
-              <DialogFooter><Button type="submit" disabled={editBusy || !!editBalanceError}>{editBusy ? "جاري الحفظ..." : "حفظ التعديل"}</Button></DialogFooter>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={!!selectedWithdrawal} onOpenChange={(o) => !o && setSelectedWithdrawal(null)}>
         <DialogContent dir="rtl" className="max-w-3xl max-h-[90vh] overflow-y-auto">

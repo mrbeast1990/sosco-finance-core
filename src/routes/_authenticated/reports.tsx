@@ -105,8 +105,16 @@ function CheckDetails({ check }: { check: any }) {
       .select("amount, expenses!inner(id, expense_date, description, deleted_at, projects(code, name), expense_categories(name))")
       .eq("funding_check_id", check.id).is("expenses.deleted_at", null)).data ?? [],
   });
-  const used = (allocs ?? []).reduce((s: number, a: any) => s + Number(a.amount), 0);
-  const remaining = Number(check.amount) - used;
+  const { data: dbRemaining } = useQuery({
+    queryKey: ["tracker-check-remaining", check.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("check_remaining", { _check_id: check.id } as any);
+      if (error) throw error;
+      return Number(data ?? 0);
+    },
+  });
+  const remaining = dbRemaining ?? Number(check.amount);
+  const used = Number(check.amount) - remaining;
   const pct = Number(check.amount) > 0 ? (used / Number(check.amount)) * 100 : 0;
 
   return (
@@ -223,12 +231,14 @@ function FundingReport() {
       const { data: allocs } = await supabase.from("expense_funding_allocations")
         .select("funding_check_id, amount, expenses!inner(deleted_at, projects(name))")
         .is("expenses.deleted_at", null);
-      return (checks ?? []).map((c: any) => {
+      return Promise.all((checks ?? []).map(async (c: any) => {
         const items = (allocs ?? []).filter((a: any) => a.funding_check_id === c.id);
-        const spent = items.reduce((s: number, a: any) => s + Number(a.amount), 0);
+        const { data: remaining, error } = await supabase.rpc("check_remaining", { _check_id: c.id } as any);
+        if (error) throw error;
+        const spent = Number(c.amount) - Number(remaining ?? 0);
         const projects = Array.from(new Set(items.map((a: any) => a.expenses?.projects?.name).filter(Boolean)));
-        return { ...c, spent, remaining: Number(c.amount) - spent, projects };
-      });
+        return { ...c, spent, remaining: Number(remaining ?? 0), projects };
+      }));
     },
   });
 

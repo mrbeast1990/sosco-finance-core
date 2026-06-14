@@ -20,9 +20,8 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { LoadingState, EmptyState } from "@/components/States";
 import { useOnlineStatus } from "@/lib/use-online-status";
 import { enqueue } from "@/lib/offline-queue";
-import { AttachmentError, EXCEL_ACCEPT, EXCEL_EXTENSIONS, getAttachmentSignedUrl, IMAGE_DOCUMENT_ACCEPT, IMAGE_DOCUMENT_EXTENSIONS, uploadAttachment, validateAttachment } from "@/lib/storage-attachments";
 
-export const Route = createFileRoute("/_authenticated/expenses")({ component: ExpensesPage });
+export const Route = createFileRoute("/_authenticated/expenses/backup")({ component: ExpensesPage });
 
 type Allocation = { funding_check_id: string; amount: string };
 
@@ -73,8 +72,6 @@ function ExpensesPage() {
   const [reversing, setReversing] = useState<any | null>(null);
   const [reverseReason, setReverseReason] = useState("");
 
-  const [filterScope, setFilterScope] = useState("all");
-  const [filterAsset, setFilterAsset] = useState("all");
   const [filterProject, setFilterProject] = useState("all");
   const [currentMonth, setCurrentMonth] = useState(new Date().toISOString().slice(0, 7));
   const [page, setPage] = useState(0);
@@ -149,23 +146,25 @@ function ExpensesPage() {
     },
   });
 
-  const { data: remainingMap } = useQuery({
-    queryKey: ["check-remaining-map", (checks ?? []).map((c: any) => c.id).join(",")],
-    enabled: !!checks,
+  const { data: spentMap } = useQuery({
+    queryKey: ["spent-map"],
     queryFn: async () => {
+      const { data } = await supabase
+        .from("expense_funding_allocations")
+        .select("funding_check_id, amount, expenses!inner(deleted_at)")
+        .is("expenses.deleted_at", null);
+
       const m: Record<string, number> = {};
-      await Promise.all((checks ?? []).map(async (check: any) => {
-        const { data, error } = await supabase.rpc("check_remaining", { _check_id: check.id } as any);
-        if (error) throw error;
-        m[check.id] = Number(data ?? 0);
-      }));
+      (data ?? []).forEach((a: any) => {
+        m[a.funding_check_id] = (m[a.funding_check_id] ?? 0) + Number(a.amount);
+      });
 
       return m;
     },
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ["expenses", currentMonth, page, filterScope, filterProject, filterAsset],
+    queryKey: ["expenses", currentMonth, page, filterProject],
     queryFn: async () => {
       const { start, end } = getMonthRange(currentMonth);
       const from = page * PAGE_SIZE;
@@ -192,11 +191,9 @@ function ExpensesPage() {
         .order("expense_date", { ascending: false })
         .range(from, to);
 
-      if (filterScope !== "all") query = query.eq("expense_scope", filterScope);
-      if (filterScope === "project" && filterProject !== "all") {
+      if (filterProject !== "all") {
         query = query.eq("project_id", filterProject);
       }
-      if (filterScope === "asset" && filterAsset !== "all") query = query.eq("asset_id", filterAsset);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -275,11 +272,6 @@ function ExpensesPage() {
     } else {
       if (allocMismatch) return toast.error("مجموع التخصيصات لا يساوي مبلغ المصروف");
       if (allocations.some((a) => !a.funding_check_id || !a.amount)) return toast.error("أكمل بيانات التخصيصات");
-      const allocatedByCheck = allocations.reduce<Record<string, number>>((m, a) => {
-        if (a.funding_check_id) m[a.funding_check_id] = (m[a.funding_check_id] ?? 0) + Number(a.amount || 0);
-        return m;
-      }, {});
-      if (Object.entries(allocatedByCheck).some(([id, amount]) => amount > (remainingMap?.[id] ?? 0))) return toast.error("رصيد الصك غير كافٍ");
     }
 
     if (form.expense_scope === "project" && !form.project_id) return toast.error("اختر المشروع");
@@ -345,11 +337,21 @@ function ExpensesPage() {
       let excel_attachment_url: string | null = null;
 
       if (file) {
-        attachment_url = await uploadAttachment("expense-attachments", user!.id, file, IMAGE_DOCUMENT_EXTENSIONS);
+        const path = `${user!.id}/${Date.now()}-${file.name}`;
+        const up = await supabase.storage.from("expense-attachments").upload(path, file);
+
+        if (up.error) throw up.error;
+
+        attachment_url = up.data.path;
       }
 
       if (excelFile) {
-        excel_attachment_url = await uploadAttachment("expense-attachments", user!.id, excelFile, EXCEL_EXTENSIONS, "excel-");
+        const path = `${user!.id}/excel-${Date.now()}-${excelFile.name}`;
+        const up = await supabase.storage.from("expense-attachments").upload(path, excelFile);
+
+        if (up.error) throw up.error;
+
+        excel_attachment_url = up.data.path;
       }
 
       const { error } = await supabase.rpc("create_expense_v3", {
@@ -382,7 +384,6 @@ function ExpensesPage() {
       setOpen(false);
       qc.invalidateQueries();
     } catch (err: any) {
-      if (err instanceof AttachmentError) return toast.error(err.userMessage, { description: err.message !== err.userMessage ? err.message : undefined });
       toast.error("فشل الحفظ", { description: err.message });
     } finally {
       setBusy(false);
@@ -484,11 +485,11 @@ function ExpensesPage() {
   }
 
   async function downloadAttachment(path: string) {
-    try {
-      window.open(await getAttachmentSignedUrl("expense-attachments", path), "_blank");
-    } catch (err) {
-      toast.error(err instanceof AttachmentError ? err.userMessage : "تعذر تحميل الملف");
-    }
+    const res = await supabase.storage.from("expense-attachments").createSignedUrl(path, 60);
+
+    if (res.error || !res.data) return toast.error("فشل تحميل المرفق");
+
+    window.open(res.data.signedUrl, "_blank");
   }
 
   return (
@@ -684,7 +685,7 @@ function ExpensesPage() {
 
                       {allocations.map((a, i) => {
                         const c = (checks ?? []).find((x: any) => x.id === a.funding_check_id);
-                        const rem = c ? (remainingMap?.[c.id] ?? 0) : 0;
+                        const rem = c ? Number(c.amount) - (spentMap?.[c.id] ?? 0) : 0;
 
                         return (
                           <div key={i} className="grid grid-cols-[1fr_140px_auto] gap-2 items-end">
@@ -702,7 +703,7 @@ function ExpensesPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                   {(checks ?? []).map((x: any) => {
-                                    const r = remainingMap?.[x.id] ?? 0;
+                                    const r = Number(x.amount) - (spentMap?.[x.id] ?? 0);
 
                                     return (
                                       <SelectItem key={x.id} value={x.id}>
@@ -789,12 +790,8 @@ function ExpensesPage() {
                     <Label>مرفق صورة/PDF (اختياري)</Label>
                     <Input
                       type="file"
-                      accept={IMAGE_DOCUMENT_ACCEPT}
-                      onChange={(e) => {
-                        const selected = e.target.files?.[0] ?? null;
-                        try { if (selected) validateAttachment(selected, IMAGE_DOCUMENT_EXTENSIONS); setFile(selected); }
-                        catch (err) { e.target.value = ""; setFile(null); toast.error(err instanceof AttachmentError ? err.userMessage : "نوع الملف غير مدعوم"); }
-                      }}
+                      accept="image/*,application/pdf"
+                      onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                     />
                   </div>
                 </div>
@@ -803,12 +800,8 @@ function ExpensesPage() {
                   <Label>مرفق Excel (اختياري)</Label>
                   <Input
                     type="file"
-                    accept={EXCEL_ACCEPT}
-                    onChange={(e) => {
-                      const selected = e.target.files?.[0] ?? null;
-                      try { if (selected) validateAttachment(selected, EXCEL_EXTENSIONS); setExcelFile(selected); }
-                      catch (err) { e.target.value = ""; setExcelFile(null); toast.error(err instanceof AttachmentError ? err.userMessage : "نوع الملف غير مدعوم"); }
-                    }}
+                    accept=".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    onChange={(e) => setExcelFile(e.target.files?.[0] ?? null)}
                   />
                   {excelFile && <p className="text-xs text-muted-foreground">{excelFile.name}</p>}
                 </div>
@@ -885,11 +878,6 @@ function ExpensesPage() {
               />
             </div>
 
-            <Select value={filterScope} onValueChange={(v) => { setFilterScope(v); setPage(0); }}>
-              <SelectTrigger className="sm:w-48"><SelectValue placeholder="نوع الارتباط" /></SelectTrigger>
-              <SelectContent><SelectItem value="all">الكل</SelectItem><SelectItem value="project">مشروع</SelectItem><SelectItem value="general">عام</SelectItem><SelectItem value="asset">أصل</SelectItem></SelectContent>
-            </Select>
-            {filterScope === "project" && (
             <Select
               value={filterProject}
               onValueChange={(v) => {
@@ -909,13 +897,6 @@ function ExpensesPage() {
                 ))}
               </SelectContent>
             </Select>
-            )}
-            {filterScope === "asset" && (
-              <Select value={filterAsset} onValueChange={(v) => { setFilterAsset(v); setPage(0); }}>
-                <SelectTrigger className="sm:w-64"><SelectValue placeholder="جميع الأصول" /></SelectTrigger>
-                <SelectContent><SelectItem value="all">جميع الأصول</SelectItem>{(assets ?? []).map((a: any) => <SelectItem key={a.id} value={a.id}>{a.asset_code} — {a.asset_name}</SelectItem>)}</SelectContent>
-              </Select>
-            )}
           </div>
 
           {isLoading ? (

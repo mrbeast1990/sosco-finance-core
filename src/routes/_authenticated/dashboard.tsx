@@ -16,9 +16,18 @@ function Dashboard() {
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => {
-      const [checks, expenses, projects, recent] = await Promise.all([
-        supabase.from("funding_checks").select("amount").is("deleted_at", null),
+      const [checks, expenses, withdrawals, assetsRes, assetExpenses, projects, recentExpenses] = await Promise.all([
+        supabase.from("funding_checks").select("id, amount").is("deleted_at", null),
         supabase.from("expenses").select("amount").is("deleted_at", null),
+        supabase.from("owner_withdrawals")
+          .select("id, amount, withdrawal_date, withdrawal_no, person_name, payment_method, status")
+          .eq("status", "approved")
+          .is("deleted_at", null),
+        supabase.from("assets").select("current_value").is("deleted_at", null),
+        supabase.from("expenses")
+          .select("amount, asset_cost_treatment, expense_date")
+          .eq("expense_scope", "asset")
+          .is("deleted_at", null),
         supabase.from("projects").select("id", { count: "exact", head: true }).is("deleted_at", null),
         supabase.from("expenses")
           .select("id, amount, expense_date, description, projects(name), expense_categories(name), cash_accounts(name)")
@@ -26,14 +35,43 @@ function Dashboard() {
           .order("created_at", { ascending: false })
           .limit(8),
       ]);
+
       const totalFunding = (checks.data ?? []).reduce((s, r) => s + Number(r.amount), 0);
+      const checkRemaining = await Promise.all((checks.data ?? []).map(async (c: any) => {
+        const { data, error } = await supabase.rpc("check_remaining", { _check_id: c.id } as any);
+        if (error) throw error;
+        return Number(data ?? 0);
+      }));
+      const totalFundingRemaining = checkRemaining.reduce((s, amount) => s + amount, 0);
       const totalExpenses = (expenses.data ?? []).reduce((s, r) => s + Number(r.amount), 0);
+      const totalApprovedWithdrawals = (withdrawals.data ?? []).reduce((s, r) => s + Number(r.amount), 0);
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+      const totalThisMonthWithdrawals = (withdrawals.data ?? [])
+        .filter((w: any) => w.withdrawal_date >= monthStart)
+        .reduce((s: number, r: any) => s + Number(r.amount), 0);
+      const assetsCount = (assetsRes.data ?? []).length;
+      const totalAssetValue = (assetsRes.data ?? []).reduce((s, r) => s + Number(r.current_value ?? 0), 0);
+      const assetExpensesThisMonth = (assetExpenses.data ?? [])
+        .filter((e: any) => e.expense_date >= monthStart)
+        .reduce((s: number, r: any) => s + Number(r.amount), 0);
+      const capitalImprovements = (assetExpenses.data ?? [])
+        .filter((e: any) => e.asset_cost_treatment === "capital_improvement")
+        .reduce((s: number, r: any) => s + Number(r.amount), 0);
+
       return {
         totalFunding,
         totalExpenses,
-        remaining: totalFunding - totalExpenses,
+        remaining: totalFundingRemaining,
         projectCount: projects.count ?? 0,
-        recent: recent.data ?? [],
+        totalApprovedWithdrawals,
+        totalThisMonthWithdrawals,
+        withdrawalsCount: (withdrawals.data ?? []).length,
+        latestWithdrawal: (withdrawals.data ?? []).sort((a: any, b: any) => b.withdrawal_date.localeCompare(a.withdrawal_date))[0] ?? null,
+        totalAssetValue,
+        assetsCount,
+        assetExpensesThisMonth,
+        capitalImprovements,
+        recent: recentExpenses.data ?? [],
       };
     },
   });
@@ -43,8 +81,10 @@ function Dashboard() {
 
   const cards = [
     { title: "إجمالي التمويل", value: formatCurrency(d.totalFunding), icon: Wallet, color: "text-primary", bg: "bg-primary/10" },
-    { title: "إجمالي المصروفات", value: formatCurrency(d.totalExpenses), icon: TrendingDown, color: "text-destructive", bg: "bg-destructive/10" },
+    { title: "المصروفات الكلية", value: formatCurrency(d.totalExpenses), icon: TrendingDown, color: "text-destructive", bg: "bg-destructive/10" },
     { title: "الرصيد المتبقي", value: formatCurrency(d.remaining), icon: PiggyBank, color: "text-success", bg: "bg-success/10" },
+    { title: "السحوبات المعتمدة", value: formatCurrency(d.totalApprovedWithdrawals), icon: Receipt, color: "text-amber-700", bg: "bg-amber-200/20" },
+    { title: "قيمة الأصول", value: formatCurrency(d.totalAssetValue), icon: Briefcase, color: "text-cyan-700", bg: "bg-cyan-200/20" },
     { title: "عدد المشاريع", value: d.projectCount.toString(), icon: Briefcase, color: "text-accent", bg: "bg-accent/10" },
   ];
 

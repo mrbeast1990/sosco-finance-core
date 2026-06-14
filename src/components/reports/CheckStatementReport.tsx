@@ -23,6 +23,14 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { exportToExcel } from "@/lib/export-excel";
 import { printReport } from "@/lib/export-print";
 
+const WITHDRAWAL_METHODS = [
+  { v: "cash", l: "نقد" },
+  { v: "bank_transfer", l: "تحويل بنكي" },
+  { v: "check", l: "شيك" },
+  { v: "other", l: "أخرى" },
+];
+const methodLabel = (v: string) => WITHDRAWAL_METHODS.find((m) => m.v === v)?.l ?? v;
+
 export function CheckStatementReport() {
   const [f, setF] = useState<ReportFiltersState>(emptyFilters());
 
@@ -43,22 +51,43 @@ export function CheckStatementReport() {
     queryKey: ["csr", f.checkId],
     enabled: !!f.checkId,
     queryFn: async () => {
-      const { data: allocs } = await supabase
-        .from("expense_funding_allocations")
-        .select(
-          "amount, expense_id, expenses!inner(id, expense_date, amount, description, payment_status, project_id, expense_scope, asset_id, deleted_at, projects(code, name), assets(asset_name), expense_categories(name))",
-        )
-        .eq("funding_check_id", f.checkId!)
-        .is("expenses.deleted_at", null)
-        .order("expense_id");
+      const [allocsRes, withdrawsRes, paymentsRes] = await Promise.all([
+        supabase
+          .from("expense_funding_allocations")
+          .select(
+            "amount, expense_id, expenses!inner(id, expense_date, amount, description, payment_status, project_id, expense_scope, asset_id, deleted_at, projects(code, name), assets(asset_name), expense_categories(name))",
+          )
+          .eq("funding_check_id", f.checkId!)
+          .is("expenses.deleted_at", null)
+          .order("expense_id"),
+        (supabase as any)
+          .from("withdrawal_funding_allocations")
+          .select("amount, owner_withdrawals!inner(id, withdrawal_date, withdrawal_no, person_name, person_role, payment_method, project_id, description, status, deleted_at, projects(code, name))")
+          .eq("funding_check_id", f.checkId!)
+          .eq("owner_withdrawals.status", "approved")
+          .is("owner_withdrawals.deleted_at", null),
+        supabase
+          .from("payable_payments")
+          .select("id, payment_date, amount, payment_method, notes")
+          .eq("funding_check_id", f.checkId!),
+      ]);
 
-      return { allocs: allocs ?? [] };
+      return {
+        allocs: allocsRes.data ?? [],
+        withdraws: (withdrawsRes.data ?? []).map((a: any) => ({ ...a.owner_withdrawals, amount: a.amount })),
+        payments: paymentsRes.data ?? [],
+      };
     },
   });
 
   const computed = useMemo(() => {
     const allocs = data?.allocs ?? [];
-    const consumed = allocs.reduce((s: number, a: any) => s + Number(a.amount), 0);
+    const withdraws = data?.withdraws ?? [];
+    const payments = data?.payments ?? [];
+    const expenseTotal = allocs.reduce((s: number, a: any) => s + Number(a.amount), 0);
+    const withdrawalTotal = withdraws.reduce((s: number, w: any) => s + Number(w.amount), 0);
+    const payableTotal = payments.reduce((s: number, p: any) => s + Number(p.amount), 0);
+    const consumed = expenseTotal + withdrawalTotal + payableTotal;
     const original = Number(check?.amount ?? 0);
     const remaining = original - consumed;
     const pct = original > 0 ? (consumed / original) * 100 : 0;
@@ -72,6 +101,9 @@ export function CheckStatementReport() {
       projects.set(k, cur);
     });
     return {
+      expenseTotal,
+      withdrawalTotal,
+      payableTotal,
       consumed,
       remaining,
       pct,
@@ -82,8 +114,10 @@ export function CheckStatementReport() {
   }, [data, check]);
 
   const onExportExcel = () => {
-    const rows = (data?.allocs ?? []).map((a: any) => ({
+    const expenseRows = (data?.allocs ?? []).map((a: any) => ({
+      type: 'expense',
       date: a.expenses?.expense_date,
+      ref: a.expenses?.expense_id,
       project: a.expenses?.projects ? `${a.expenses.projects.code} — ${a.expenses.projects.name}` : (a.expenses?.assets?.asset_name ?? "—"),
       scope: a.expenses?.expense_scope,
       category: a.expenses?.expense_categories?.name ?? "—",
@@ -91,13 +125,26 @@ export function CheckStatementReport() {
       status: a.expenses?.payment_status,
       amount: Number(a.amount),
     }));
+    const withdrawRows = (data?.withdraws ?? []).map((w: any) => ({
+      type: 'withdrawal',
+      date: w.withdrawal_date,
+      ref: w.withdrawal_no,
+      project: w.projects ? `${w.projects.code} — ${w.projects.name}` : "—",
+      scope: 'withdrawal',
+      category: w.person_role,
+      description: w.description ?? "",
+      status: 'approved',
+      amount: Number(w.amount),
+    }));
     exportToExcel(
-      rows,
+      [...expenseRows, ...withdrawRows],
       [
+        { header: "نوع السجل", key: "type", width: 14 },
         { header: "التاريخ", key: "date", width: 14 },
+        { header: "المرجع", key: "ref", width: 18 },
         { header: "المشروع/الأصل", key: "project", width: 28 },
-        { header: "النطاق", key: "scope", width: 10 },
-        { header: "الفئة", key: "category", width: 20 },
+        { header: "النطاق", key: "scope", width: 12 },
+        { header: "الفئة / الدور", key: "category", width: 20 },
         { header: "الوصف", key: "description", width: 30 },
         { header: "الحالة", key: "status", width: 10 },
         { header: "المبلغ", key: "amount", width: 16, formatter: (v) => Number(v) },
@@ -148,7 +195,10 @@ export function CheckStatementReport() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <Kpi label="المبلغ الأصلي" value={formatCurrency(check.amount)} />
-              <Kpi label="المستهلك" value={formatCurrency(computed.consumed)} tone="bad" />
+              <Kpi label="المصروفات" value={formatCurrency(computed.expenseTotal)} tone="secondary" />
+              <Kpi label="مسحوبات المالكيين" value={formatCurrency(computed.withdrawalTotal)} tone="secondary" />
+              <Kpi label="تسويات الذمم" value={formatCurrency(computed.payableTotal)} tone="secondary" />
+              <Kpi label="الإجمالي المستهلك" value={formatCurrency(computed.consumed)} tone="bad" />
               <Kpi
                 label="المتبقي"
                 value={formatCurrency(computed.remaining)}
@@ -170,6 +220,39 @@ export function CheckStatementReport() {
               </div>
             </SectionCard>
           )}
+
+          <SectionCard title={`مسحوبات المالكيين المعتمدة (${data.withdraws.length})`}>
+            {data.withdraws.length === 0 ? (
+              <EmptyState title="لا توجد مسحوبات معتمدة لهذا الصك" />
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>التاريخ</TableHead>
+                      <TableHead>رقم المسحوبة</TableHead>
+                      <TableHead>الشخص</TableHead>
+                      <TableHead className="hidden md:table-cell">طريقة الدفع</TableHead>
+                      <TableHead className="text-left">المبلغ</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.withdraws.map((w: any, i: number) => (
+                      <TableRow key={i}>
+                        <TableCell className="text-xs whitespace-nowrap">{formatDate(w.withdrawal_date)}</TableCell>
+                        <TableCell className="text-sm">{w.withdrawal_no}</TableCell>
+                        <TableCell className="text-sm">{w.person_name}</TableCell>
+                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">{methodLabel(w.payment_method)}</TableCell>
+                        <TableCell className="text-left tabular-nums font-medium whitespace-nowrap">
+                          {formatCurrency(w.amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </SectionCard>
 
           <SectionCard title={`المصروفات المخصّصة (${data.allocs.length})`}>
             {data.allocs.length === 0 ? (

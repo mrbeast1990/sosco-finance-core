@@ -22,6 +22,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { LoadingState, EmptyState } from "@/components/States";
 import { useOnlineStatus } from "@/lib/use-online-status";
 import { enqueue } from "@/lib/offline-queue";
+import { AttachmentError, getAttachmentSignedUrl, IMAGE_DOCUMENT_ACCEPT, IMAGE_DOCUMENT_EXTENSIONS, uploadAttachment, validateAttachment } from "@/lib/storage-attachments";
 
 export const Route = createFileRoute("/_authenticated/funders/$funderId")({ component: FunderProfile });
 
@@ -68,14 +69,27 @@ function FunderProfile() {
       .in("funding_check_id", checkIds)).data ?? [],
   });
 
+  const { data: checkRemaining } = useQuery({
+    queryKey: ["funder-check-remaining", funderId, checkIds.join(",")],
+    enabled: checkIds.length > 0,
+    queryFn: async () => {
+      const rows = await Promise.all(checkIds.map(async (id) => {
+        const { data, error } = await supabase.rpc("check_remaining", { _check_id: id } as any);
+        if (error) throw error;
+        return [id, Number(data ?? 0)] as const;
+      }));
+      return new Map(rows);
+    },
+  });
+
   const usedByCheck = useMemo(() => {
     const m = new Map<string, number>();
-    (allocations ?? []).forEach((a: any) => {
-      if (a.expenses?.deleted_at) return;
-      m.set(a.funding_check_id, (m.get(a.funding_check_id) ?? 0) + Number(a.amount));
+    (checks ?? []).forEach((c: any) => {
+      const remaining = checkRemaining?.get(c.id);
+      if (remaining != null) m.set(c.id, Number(c.amount) - remaining);
     });
     return m;
-  }, [allocations]);
+  }, [checks, checkRemaining]);
 
   const totals = useMemo(() => {
     const totalReceived = (checks ?? []).reduce((s, c) => s + Number(c.amount), 0);
@@ -142,10 +156,7 @@ function FunderProfile() {
     try {
       let attachment_url: string | null = null;
       if (checkFile) {
-        const path = `${user!.id}/${Date.now()}-${checkFile.name}`;
-        const up = await supabase.storage.from("check-attachments").upload(path, checkFile);
-        if (up.error) throw up.error;
-        attachment_url = up.data.path;
+        attachment_url = await uploadAttachment("check-attachments", user!.id, checkFile, IMAGE_DOCUMENT_EXTENSIONS);
       }
       const { error } = await supabase.from("funding_checks").insert({
         funder_id: funderId,
@@ -164,6 +175,7 @@ function FunderProfile() {
       setCheckFile(null);
       qc.invalidateQueries({ queryKey: ["funder-checks", funderId] });
     } catch (err: any) {
+      if (err instanceof AttachmentError) return toast.error(err.userMessage, { description: err.message !== err.userMessage ? err.message : undefined });
       toast.error("فشل الحفظ", { description: err.message });
     } finally {
       setBusy(false);
@@ -193,10 +205,11 @@ function FunderProfile() {
     }
     let attachment_url: string | undefined;
     if (editFile) {
-      const path = `${user!.id}/${Date.now()}-${editFile.name}`;
-      const up = await supabase.storage.from("check-attachments").upload(path, editFile);
-      if (up.error) return toast.error("فشل رفع المرفق", { description: up.error.message });
-      attachment_url = up.data.path;
+      try {
+        attachment_url = await uploadAttachment("check-attachments", user!.id, editFile, IMAGE_DOCUMENT_EXTENSIONS);
+      } catch (err) {
+        return toast.error(err instanceof AttachmentError ? err.userMessage : "فشل رفع المرفق", { description: err instanceof Error ? err.message : undefined });
+      }
     }
     const patch: any = {
       check_number: form.check_number,
@@ -216,9 +229,11 @@ function FunderProfile() {
   }
 
   async function downloadAttachment(path: string) {
-    const res = await supabase.storage.from("check-attachments").createSignedUrl(path, 60);
-    if (res.error || !res.data) return toast.error("فشل تحميل المرفق");
-    window.open(res.data.signedUrl, "_blank");
+    try {
+      window.open(await getAttachmentSignedUrl("check-attachments", path), "_blank");
+    } catch (err) {
+      toast.error(err instanceof AttachmentError ? err.userMessage : "تعذر تحميل الملف");
+    }
   }
 
   async function onConfirmDelete() {
@@ -269,7 +284,11 @@ function FunderProfile() {
                     <div className="space-y-2"><Label>تاريخ الاستلام</Label>
                       <Input required type="date" value={form.received_date} onChange={(e) => setForm({ ...form, received_date: e.target.value })} /></div>
                     <div className="space-y-2"><Label>صورة الصك (اختياري)</Label>
-                      <Input type="file" accept="image/*,application/pdf" onChange={(e) => setCheckFile(e.target.files?.[0] ?? null)} />
+                      <Input type="file" accept={IMAGE_DOCUMENT_ACCEPT} onChange={(e) => {
+                        const selected = e.target.files?.[0] ?? null;
+                        try { if (selected) validateAttachment(selected, IMAGE_DOCUMENT_EXTENSIONS); setCheckFile(selected); }
+                        catch (err) { e.target.value = ""; setCheckFile(null); toast.error(err instanceof AttachmentError ? err.userMessage : "نوع الملف غير مدعوم"); }
+                      }} />
                       {checkFile && <p className="text-xs text-muted-foreground">{checkFile.name}</p>}
                     </div>
                     <div className="space-y-2"><Label>ملاحظات</Label>
@@ -428,7 +447,11 @@ function FunderProfile() {
                 <div className="space-y-2"><Label>تاريخ الاستلام</Label>
                   <Input required type="date" value={form.received_date} onChange={(e) => setForm({ ...form, received_date: e.target.value })} /></div>
                 <div className="space-y-2"><Label>صورة الصك (اختياري)</Label>
-                  <Input type="file" accept="image/*,application/pdf" onChange={(e) => setEditFile(e.target.files?.[0] ?? null)} />
+                  <Input type="file" accept={IMAGE_DOCUMENT_ACCEPT} onChange={(e) => {
+                    const selected = e.target.files?.[0] ?? null;
+                    try { if (selected) validateAttachment(selected, IMAGE_DOCUMENT_EXTENSIONS); setEditFile(selected); }
+                    catch (err) { e.target.value = ""; setEditFile(null); toast.error(err instanceof AttachmentError ? err.userMessage : "نوع الملف غير مدعوم"); }
+                  }} />
                   {editing.attachment_url && !editFile && (
                     <Button type="button" variant="ghost" size="sm" onClick={() => downloadAttachment(editing.attachment_url)}>
                       <Paperclip className="size-3.5" /> عرض المرفق الحالي

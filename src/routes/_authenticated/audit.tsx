@@ -120,15 +120,13 @@ async function fetchAllIssues(): Promise<Issue[]> {
     .from("funding_checks")
     .select("id, check_number, amount, deleted_at")
     .is("deleted_at", null);
-  const sumByCheck = new Map<string, number>();
-  const activeExp = new Set((expenses ?? []).map((e) => e.id as string));
-  (allocs ?? []).forEach((a) => {
-    if (!activeExp.has(a.expense_id as string)) return;
-    const k = a.funding_check_id as string;
-    sumByCheck.set(k, (sumByCheck.get(k) ?? 0) + Number(a.amount ?? 0));
-  });
-  (checks ?? []).forEach((c) => {
-    const used = sumByCheck.get(c.id as string) ?? 0;
+  const checkBalances = await Promise.all((checks ?? []).map(async (c) => {
+    const { data, error } = await supabase.rpc("check_remaining", { _check_id: c.id as string } as any);
+    if (error) throw error;
+    return { check: c, remaining: Number(data ?? 0) };
+  }));
+  checkBalances.forEach(({ check: c, remaining }) => {
+    const used = Number(c.amount) - remaining;
     if (used - Number(c.amount) > 0.001) {
       issues.push({
         id: `over-${c.id}`,
@@ -588,21 +586,12 @@ function RiskWarnings() {
         .from("funding_checks")
         .select("id, check_number, amount")
         .is("deleted_at", null);
-      const { data: allocs } = await supabase
-        .from("expense_funding_allocations")
-        .select("funding_check_id, amount, expense_id");
-      const { data: activeExp } = await supabase
-        .from("expenses").select("id").is("deleted_at", null);
-      const active = new Set((activeExp ?? []).map((e) => e.id as string));
-      const used = new Map<string, number>();
-      (allocs ?? []).forEach((a) => {
-        if (!active.has(a.expense_id as string)) return;
-        const k = a.funding_check_id as string;
-        used.set(k, (used.get(k) ?? 0) + Number(a.amount));
-      });
-      (checks ?? []).forEach((c) => {
-        const u = used.get(c.id as string) ?? 0;
-        const rem = Number(c.amount) - u;
+      const remainingRows = await Promise.all((checks ?? []).map(async (c) => {
+        const { data, error } = await supabase.rpc("check_remaining", { _check_id: c.id as string } as any);
+        if (error) throw error;
+        return { check: c, remaining: Number(data ?? 0) };
+      }));
+      remainingRows.forEach(({ check: c, remaining: rem }) => {
         if (rem < 0) out.push({
           id: `neg-${c.id}`,
           severity: "critical",
