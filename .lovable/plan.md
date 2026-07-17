@@ -1,71 +1,84 @@
-## نطاق ضخم — تنفيذ على 4 دفعات متتالية في رسائل منفصلة
 
-كل دفعة قابلة للاختبار بمفردها. سأبدأ بالدفعة 1 فور موافقتك، ثم أنتظر تأكيدك للانتقال للتالية.
+This is a large, high-risk scope touching accounting RPCs and schema. I'll execute in the exact 4 phases you defined, stopping between phases so you can verify before the next one starts.
+
+## Phase 1 — Asset Expense Details (UI only, no DB)
+
+**Files**: `src/routes/_authenticated/assets-registry.tsx`, new `src/components/ExpenseDetailsDialog.tsx` (reusable).
+
+- Add eye icon button in the "سجل المصروفات" table inside `AssetDetailsDialog` with `stopPropagation`.
+- New dialog fetches the full expense (join category, project, asset, allocations→check→funder, cash account, payable, creditor, journal entry, profile of creator, attachments).
+- Reuse this same component later from Expenses page and Project drill-down to avoid duplication.
+- Read-only, no financial recalc.
+
+Risk: low. No DB changes.
+
+## Phase 2 — Multi-Check Withdrawal Allocations
+
+**Inspect first** (I'll run `supabase--read_query` before writing migration):
+- `withdrawal_funding_allocations` current constraints (esp. any UNIQUE on `withdrawal_id` alone).
+- Existing rows to confirm 1:1 historical shape.
+- `create_withdrawal_atomic`, `approve_withdrawal_atomic`, `cancel_withdrawal_atomic` signatures.
+
+**Migration** (non-destructive):
+- Drop any UNIQUE on `withdrawal_id` alone (only if it exists); add `UNIQUE (withdrawal_id, funding_check_id)`.
+- Keep column `owner_withdrawals.funding_check_id` for legacy (nullable); new withdrawals may leave it NULL when using multi-allocation. Historical rows untouched.
+- New/updated RPCs:
+  - `create_withdrawal_v2(_withdrawal_date, _person_name, _person_role, _amount, _payment_method, _cash_account_id, _allocations jsonb, _project_id, _description, _attachment_url)` — validates sum, uniqueness, positive amounts; stores allocations in `withdrawal_funding_allocations` at draft (no balance mutation yet — same as before).
+  - `approve_withdrawal_v2(_id)` — for each allocation locks the check, verifies `check_remaining`, builds one journal entry with one credit line per distinct cash account (mirroring `create_expense_v2` pattern).
+  - `cancel_withdrawal_atomic` — extend to reverse multi-allocation journal lines (keeps single-check path working since allocations table already used).
+- Old `create_withdrawal_atomic` kept for backward compat (offline queue may still call it).
+
+**UI** (`src/routes/_authenticated/withdrawals.tsx`):
+- Replace single check dropdown with allocation rows (add/remove, per-row remaining balance, sum check, mismatch warning) — pattern copied from `expenses.tsx`.
+- Show per-check details (funder / cash account / consumed / remaining).
+- Historical single-check withdrawals still render (read allocations table; if 1 row, show as-is).
+
+Risk: **medium-high**. This touches accounting. I'll inspect schema and share migration SQL before applying.
+
+## Phase 3 — Expense Date Modes + Visible KPI Dashboard
+
+**Files**: `src/routes/_authenticated/expenses.tsx`.
+
+- Date mode selector: `شهر | من — إلى | الكل`. Current month nav preserved under `شهر`.
+- New RPC `expenses_summary(_from, _to, _scope, _project_id, _asset_id, _payment_status, _search)` returns:
+  - `total_amount, count, paid_amount, payable_amount, project_amount, general_amount, asset_amount`.
+  - Aggregates full filtered set (not just current page).
+- KPI cards above table, driven by that RPC (same filters as list query).
+- Server-side pagination unchanged (50/page). "الكل" mode still paginates.
+- Reset page to 1 on any filter change.
+
+Risk: low-medium. Read-only RPC.
+
+## Phase 4 — Project Details Page
+
+**Files**: new route `src/routes/_authenticated/projects.$projectId.tsx`; link from `projects.tsx` and `dashboard.tsx`.
+
+**Income source** — I'll first inspect and confirm the authoritative source. My working hypothesis based on current schema:
+- If project is linked as a funder (`funders.is_project = true` + `project_code`), income = sum of `funding_checks.amount` where `funder_id` = that funder id.
+- If project is not funder-linked, income = 0 (show "لا يوجد تمويل مسجل لهذا المشروع").
+- I'll confirm before implementing and document the decision at the top of the file.
+
+**Sections**:
+- Header (name, code, status, dates, linked funder, description).
+- KPI cards gated by `reports.financial`.
+- Tabs: الملخص / حسب الفئة / الصكوك / المسحوبات / الأصول / الذمم / السجل.
+- Category summary via new RPC `project_expense_category_summary(_project_id, _from, _to)` returning name/count/total/pct; row click → drill-down list reusing Phase 1's `ExpenseDetailsDialog`.
+- Charts: monthly trend + by-category (recharts, already in project). Compact — not replacing tables.
+- Drill-downs paginated.
+
+Permissions: hide financial KPIs and monetary columns without `reports.financial`.
+
+Risk: medium (new page, aggregation RPCs). No writes.
 
 ---
 
-### الدفعة 1 — الأساس (هذه الرسالة)
+## Order & gates
 
-**A. إصلاحات UI المتجاوبة (شامل التطبيق):**
-- إنشاء مكوّن `<TruncatedSelectValue>` مغلّف لـ `SelectValue` يطبّق `max-w-full / truncate / whitespace-nowrap` + Tooltip تلقائي للنص الكامل عند الـ hover/long-press
-- تعديل `select.tsx`: `SelectTrigger` يحصل على `min-w-0` + الـ value فيه `truncate block` و `flex-1`
-- `SelectItem`: السماح بسطرين (`whitespace-normal leading-snug`)
-- `Dialog/Sheet`: `overflow-x-hidden`, `max-h-[90vh] overflow-y-auto`, الحقول `grid-cols-1 sm:grid-cols-2`
-- نموذج المصروفات: قسم تخصيص الصكوك يُعاد تصميمه كبطاقات (رقم الصك / المشروع / المتبقي في صفوف منفصلة بدلاً من سطر واحد طويل)
-- مراجعة: `expenses.tsx`, `payables.tsx`, `withdrawals.tsx`, `assets-registry.tsx`, `funding_checks` forms
+1. Phase 1 → build → I stop and report.
+2. Phase 2 inspection + migration proposal → **wait for your approval on migration SQL** → apply → UI → build → stop.
+3. Phase 3 → migration (RPC only) → UI → build → stop.
+4. Phase 4 → inspection + income-source confirmation → migrations → UI → build → stop.
 
-**B. الصلاحيات الجديدة (migration):**
-- `reports.view` — رؤية التقارير الأساسية (تمنح للجميع افتراضياً)
-- `reports.export` — تصدير
-- `reports.financial` — رؤية البيانات المالية الحساسة (الأرصدة، التدفق النقدي، الذمم)
-- تمنح كلها للـ admin افتراضياً
+I will NOT proceed past a failing build. I will NOT run destructive backfills.
 
-**C. شريط الفلاتر الموحد (Global Filters):**
-- `<ReportFilters>` component: من/إلى تاريخ، مشروع، أصل، ممول، صك، فئة، دائن، حالة دفع، نطاق، مستخدم، بحث نصي
-- يخزّن الحالة في search params (TanStack zod-adapter `fallback()`)
-- زر "تطبيق" / "إعادة تعيين"
-
-**D. نظام التصدير (utilities مشتركة):**
-- `src/lib/export-excel.ts` — يستخدم `xlsx` (موجود؟ سأضيف إن لم يكن) — يبني ملف بـ header (اسم الشركة / اسم التقرير / الفترة / المستخدم / التاريخ)
-- `src/lib/export-print.ts` — `window.print()` + print stylesheet مخصص في `styles.css` (`@media print`)
-- PDF عبر طباعة المتصفح إلى PDF (الأبسط والأخف؛ تصدير PDF برمجي سنضيفه لاحقاً عند الحاجة)
-
----
-
-### الدفعة 2 — التقارير المالية الأساسية (الرسالة التالية بعد موافقتك)
-
-- **كشف حساب المشروع** — KPIs (تمويل/مصروفات/مسحوبات/أصول/ذمم/متبقي) + Drill-down + Charts شهرية
-- **كشف حساب الصك** — مع تنبيهات (منخفض/مستنفد/متجاوز)
-- **تقرير الذمم الدائنة** — Aging (حالية، 1-30، 31-60، 61-90، +90) + 4 عروض (دائن/مشروع/أصل/شهر) + Drill-down للتسديدات
-- **تقرير التدفق النقدي** — Cash In/Out + رصيد افتتاحي/ختامي + مقارنة شهرية
-
----
-
-### الدفعة 3 — التقارير التحليلية والإدارية
-
-- **تحليل المصروفات** — 5 عروض (مشروع/أصل/فئة/شهر/مستخدم) + Pie + Trend
-- **تقرير تكلفة الأصول** — شراء/تحسينات/تشغيلي/حالية + Drill-down
-- **تقرير المسحوبات** — حسب المالك/المشروع/الشهر + chart
-- **تقرير القيود اليومية** — مع validation (غير متوازن/مرجع مفقود/حساب مفقود)
-
----
-
-### الدفعة 4 — لوحة الإدارة التنفيذية + التحسينات
-
-- **Executive Dashboard** — 7 KPI cards + 4 charts رئيسية
-- Drill-down موحّد عبر كل التقارير (modal جانبي عند الضغط على أي رقم)
-- Pagination / Lazy loading للجداول الكبيرة
-- فهارس DB إضافية للأداء (`expenses.expense_date`, `payables.due_date`, إلخ)
-- مراجعة شاملة للأداء والاستجابة
-
----
-
-## ملاحظات تقنية
-
-- جميع الحسابات الإجمالية ستُنفّذ عبر SQL aggregations (RPC functions) لا JS، للأداء مع آلاف السجلات
-- PDF: نعتمد print-to-PDF عبر المتصفح في الدفعة 1؛ إذا احتجت PDF مبرمج بـ header شركة مخصص (logo) أخبرني وسأضيف `jspdf` في الدفعة 4
-- خط طباعة عربي RTL: نستخدم `@media print` لإخفاء sidebar/header وعرض الجدول كاملاً
-
----
-
-**هل أبدأ بالدفعة 1 الآن؟**
+Confirm and I'll begin Phase 1.
