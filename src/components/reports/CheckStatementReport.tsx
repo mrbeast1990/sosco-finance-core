@@ -195,9 +195,9 @@ export function CheckStatementReport() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <Kpi label="المبلغ الأصلي" value={formatCurrency(check.amount)} />
-              <Kpi label="المصروفات" value={formatCurrency(computed.expenseTotal)} tone="secondary" />
-              <Kpi label="مسحوبات المالكيين" value={formatCurrency(computed.withdrawalTotal)} tone="secondary" />
-              <Kpi label="تسويات الذمم" value={formatCurrency(computed.payableTotal)} tone="secondary" />
+              <Kpi label="المصروفات" value={formatCurrency(computed.expenseTotal)} tone="info" />
+              <Kpi label="مسحوبات المالكيين" value={formatCurrency(computed.withdrawalTotal)} tone="info" />
+              <Kpi label="تسويات الذمم" value={formatCurrency(computed.payableTotal)} tone="info" />
               <Kpi label="الإجمالي المستهلك" value={formatCurrency(computed.consumed)} tone="bad" />
               <Kpi
                 label="المتبقي"
