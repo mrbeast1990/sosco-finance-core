@@ -323,6 +323,7 @@ function AssetDetailsDialog({ asset, onClose }: { asset: any | null; onClose: ()
                     <TableHeader><TableRow>
                       <TableHead>التاريخ</TableHead><TableHead>الفئة</TableHead><TableHead>النوع</TableHead>
                       <TableHead>المعالجة</TableHead><TableHead className="text-left">المبلغ</TableHead>
+                      <TableHead></TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
                       {(history ?? []).map((h: any) => (
@@ -332,6 +333,12 @@ function AssetDetailsDialog({ asset, onClose }: { asset: any | null; onClose: ()
                           <TableCell>{h.asset_expense_type ?? "—"}</TableCell>
                           <TableCell>{h.asset_cost_treatment === "capital_improvement" ? "تحسين رأسمالي" : "تشغيلي"}</TableCell>
                           <TableCell className="text-left tabular-nums">{formatCurrency(h.amount)}</TableCell>
+                          <TableCell>
+                            <Button size="sm" variant="ghost" title="تفاصيل"
+                              onClick={(e) => { e.stopPropagation(); setDetailsId(h.id); }}>
+                              <Eye className="size-3.5" />
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -341,6 +348,11 @@ function AssetDetailsDialog({ asset, onClose }: { asset: any | null; onClose: ()
             </Card>
           </div>
         )}
+        <ExpenseDetailsDialog
+          expenseId={detailsId}
+          open={!!detailsId}
+          onOpenChange={(o) => !o && setDetailsId(null)}
+        />
       </DialogContent>
     </Dialog>
   );
