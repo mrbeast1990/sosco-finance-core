@@ -271,6 +271,7 @@ function AssetsPage() {
 }
 
 function AssetDetailsDialog({ asset, onClose }: { asset: any | null; onClose: () => void }) {
+  const [detailsId, setDetailsId] = useState<string | null>(null);
   const { data: history } = useQuery({
     enabled: !!asset,
     queryKey: ["asset-history", asset?.id],
