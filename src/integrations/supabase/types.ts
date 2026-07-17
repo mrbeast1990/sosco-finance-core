@@ -927,6 +927,48 @@ export type Database = {
           },
         ]
       }
+      withdrawal_funding_allocations: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          funding_check_id: string
+          id: string
+          withdrawal_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          funding_check_id: string
+          id?: string
+          withdrawal_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          funding_check_id?: string
+          id?: string
+          withdrawal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "withdrawal_funding_allocations_funding_check_id_fkey"
+            columns: ["funding_check_id"]
+            isOneToOne: false
+            referencedRelation: "funding_checks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "withdrawal_funding_allocations_withdrawal_id_fkey"
+            columns: ["withdrawal_id"]
+            isOneToOne: false
+            referencedRelation: "owner_withdrawals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
