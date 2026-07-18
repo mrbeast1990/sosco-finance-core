@@ -81,8 +81,13 @@ function WithdrawalsPage() {
   const { data: checks } = useQuery({
     queryKey: ["checks-wd"],
     queryFn: async () => (await supabase.from("funding_checks")
-      .select("id, check_number, funders(name)").is("deleted_at", null)).data ?? [],
+      .select("id, check_number, amount, funders(name), cash_accounts(name)").is("deleted_at", null)).data ?? [],
   });
+  const checksById = useMemo(() => {
+    const m = new Map<string, any>();
+    (checks ?? []).forEach((c: any) => m.set(c.id, c));
+    return m;
+  }, [checks]);
   const { data: selectedCheck, isLoading: isLoadingSelectedCheck } = useQuery({
     queryKey: ["withdrawal-check", form.funding_check_id],
     enabled: !!form.funding_check_id,
