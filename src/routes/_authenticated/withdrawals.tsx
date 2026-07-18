@@ -395,17 +395,74 @@ function WithdrawalsPage() {
                     </Select>
                   </div>
                 </div>
+
+                <div className="space-y-2 rounded-md border p-3">
+                  <div className="flex items-center justify-between">
+                    <Label>تخصيصات متعددة الصكوك (اختياري)</Label>
+                    <Button type="button" size="sm" variant="outline"
+                      onClick={() => {
+                        setAllocations([...allocations, { funding_check_id: "", amount: "" }]);
+                        if (allocations.length === 0) setForm({ ...form, funding_check_id: "" });
+                      }}
+                    ><Plus className="size-3.5" /> إضافة صك</Button>
+                  </div>
+                  {allocations.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">استخدم "إضافة صك" لتقسيم المسحوبة على عدة صكوك. يتم تعطيل خانة الصك الواحد أعلاه تلقائياً.</div>
+                  ) : (
+                    <>
+                      {allocations.map((a, idx) => {
+                        const c = a.funding_check_id ? checksById.get(a.funding_check_id) : null;
+                        return (
+                          <div key={idx} className="grid grid-cols-1 sm:grid-cols-[1fr_140px_auto] gap-2 items-start">
+                            <Select value={a.funding_check_id || ""} onValueChange={(v) => {
+                              const next = [...allocations]; next[idx] = { ...next[idx], funding_check_id: v }; setAllocations(next);
+                            }}>
+                              <SelectTrigger><SelectValue placeholder="اختر الصك" /></SelectTrigger>
+                              <SelectContent>
+                                {(checks ?? [])
+                                  .filter((ch: any) => ch.id === a.funding_check_id || !allocations.some((x, i) => i !== idx && x.funding_check_id === ch.id))
+                                  .map((ch: any) => (
+                                    <SelectItem key={ch.id} value={ch.id}>صك {ch.check_number} — {ch.funders?.name} ({formatCurrency(ch.amount)})</SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                            <Input type="number" step="0.01" min="0.01" placeholder="المبلغ" dir="ltr" value={a.amount} onChange={(e) => {
+                              const next = [...allocations]; next[idx] = { ...next[idx], amount: e.target.value }; setAllocations(next);
+                            }} />
+                            <Button type="button" size="icon" variant="ghost" onClick={() => setAllocations(allocations.filter((_, i) => i !== idx))} title="حذف">
+                              <Trash2 className="size-4 text-destructive" />
+                            </Button>
+                            {c && (
+                              <div className="sm:col-span-3 text-xs text-muted-foreground">
+                                الممول: {c.funders?.name || "—"} • حساب الصرف: {c.cash_accounts?.name || "—"} • المبلغ الأصلي: {formatCurrency(c.amount)}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <div className="flex items-center justify-between text-sm pt-1 border-t">
+                        <span>مجموع التخصيصات</span>
+                        <span className="tabular-nums font-medium">{formatCurrency(allocationsTotal)} / {formatCurrency(Number(form.amount || 0))}</span>
+                      </div>
+                      {allocationsSumError && <div className="text-xs text-destructive">{allocationsSumError}</div>}
+                      {allocationsDupError && <div className="text-xs text-destructive">{allocationsDupError}</div>}
+                    </>
+                  )}
+                </div>
+
                 <div className="space-y-2"><Label>الوصف</Label>
                   <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
                 </div>
                 <div className="space-y-2"><Label>مرفق (اختياري)</Label>
                   <Input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
                 </div>
-                {checkBalanceError && (
+                {allocations.length === 0 && checkBalanceError && (
                   <div className="text-sm text-destructive font-medium">{checkBalanceError}</div>
                 )}
                 <DialogFooter>
-                  <Button type="submit" disabled={busy || !!checkBalanceError}>{busy ? "جاري الحفظ..." : "حفظ كمسوّدة"}</Button>
+                  <Button type="submit" disabled={busy || (allocations.length === 0 ? !!checkBalanceError : !!(allocationsSumError || allocationsDupError))}>
+                    {busy ? "جاري الحفظ..." : "حفظ كمسوّدة"}
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
