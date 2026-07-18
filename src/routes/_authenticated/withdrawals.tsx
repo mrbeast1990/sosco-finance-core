@@ -69,6 +69,7 @@ function WithdrawalsPage() {
     description: "",
   };
   const [form, setForm] = useState(empty);
+  const [allocations, setAllocations] = useState<Array<{ funding_check_id: string; amount: string }>>([]);
   const [editing, setEditing] = useState<any | null>(null);
   const [editForm, setEditForm] = useState(empty);
   const [editBusy, setEditBusy] = useState(false);
