@@ -182,7 +182,7 @@ function WithdrawalsPage() {
   const totalMonth = approved.filter((w: any) => w.withdrawal_date >= monthStart).reduce((s: number, w: any) => s + Number(w.amount), 0);
   const totalAll = approved.reduce((s: number, w: any) => s + Number(w.amount), 0);
 
-  function openNew() { setForm(empty); setFile(null); setOpen(true); }
+  function openNew() { setForm(empty); setAllocations([]); setFile(null); setOpen(true); }
   function openEdit(w: any) {
     setEditForm({
       withdrawal_date: w.withdrawal_date,
