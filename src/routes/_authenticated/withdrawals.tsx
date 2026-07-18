@@ -221,11 +221,29 @@ function WithdrawalsPage() {
     qc.invalidateQueries({ queryKey: ["withdrawal-details"] });
   }
 
+  const allocationsTotal = useMemo(
+    () => allocations.reduce((s, a) => s + (Number(a.amount) || 0), 0),
+    [allocations],
+  );
+  const allocationsSumError = allocations.length > 0 && Math.abs(allocationsTotal - Number(form.amount || 0)) > 0.005
+    ? `مجموع التخصيصات (${allocationsTotal.toFixed(2)}) لا يساوي مبلغ المسحوبة (${Number(form.amount || 0).toFixed(2)})`
+    : undefined;
+  const allocationsDupError = allocations.length > 0
+    && new Set(allocations.map((a) => a.funding_check_id).filter(Boolean)).size !== allocations.filter((a) => a.funding_check_id).length
+    ? "لا يمكن تكرار نفس الصك أكثر من مرة" : undefined;
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
-      if (selectedCheck?.remaining != null && Number(form.amount) > Number(selectedCheck.remaining)) {
+      const useMulti = allocations.length > 0;
+      if (useMulti) {
+        if (allocationsSumError) { toast.error(allocationsSumError); return; }
+        if (allocationsDupError) { toast.error(allocationsDupError); return; }
+        if (allocations.some((a) => !a.funding_check_id || !a.amount || Number(a.amount) <= 0)) {
+          toast.error("يجب تعبئة الصك والمبلغ لكل تخصيص"); return;
+        }
+      } else if (form.funding_check_id && selectedCheck?.remaining != null && Number(form.amount) > Number(selectedCheck.remaining)) {
         toast.error("رصيد الصك غير كافٍ");
         return;
       }
@@ -242,11 +260,14 @@ function WithdrawalsPage() {
         _person_role: form.person_role,
         _amount: Number(form.amount),
         _payment_method: form.payment_method,
-        _cash_account_id: form.cash_account_id || null,
-        _funding_check_id: form.funding_check_id || null,
+        _cash_account_id: useMulti ? null : (form.cash_account_id || null),
+        _funding_check_id: useMulti ? null : (form.funding_check_id || null),
         _project_id: form.project_id || null,
         _description: form.description || null,
         _attachment_url: attachment_url,
+        _allocations: useMulti
+          ? allocations.map((a) => ({ funding_check_id: a.funding_check_id, amount: Number(a.amount) }))
+          : null,
       } as any);
       if (error) throw error;
       toast.success("تم تسجيل المسحوبة كمسوّدة", { description: "تحتاج اعتماد لإنشاء القيد المحاسبي" });
