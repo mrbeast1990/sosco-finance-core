@@ -1045,6 +1045,7 @@ export type Database = {
       }
       create_withdrawal_atomic: {
         Args: {
+          _allocations?: Json
           _amount: number
           _attachment_url: string
           _cash_account_id: string

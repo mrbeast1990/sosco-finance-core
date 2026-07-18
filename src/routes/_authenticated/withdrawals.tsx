@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, CheckCircle2, XCircle, Paperclip, Wallet, Calendar, Pencil } from "lucide-react";
+import { Plus, Search, CheckCircle2, XCircle, Paperclip, Wallet, Calendar, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -69,6 +69,7 @@ function WithdrawalsPage() {
     description: "",
   };
   const [form, setForm] = useState(empty);
+  const [allocations, setAllocations] = useState<Array<{ funding_check_id: string; amount: string }>>([]);
   const [editing, setEditing] = useState<any | null>(null);
   const [editForm, setEditForm] = useState(empty);
   const [editBusy, setEditBusy] = useState(false);
@@ -80,8 +81,13 @@ function WithdrawalsPage() {
   const { data: checks } = useQuery({
     queryKey: ["checks-wd"],
     queryFn: async () => (await supabase.from("funding_checks")
-      .select("id, check_number, funders(name)").is("deleted_at", null)).data ?? [],
+      .select("id, check_number, amount, funders(name), cash_accounts(name)").is("deleted_at", null)).data ?? [],
   });
+  const checksById = useMemo(() => {
+    const m = new Map<string, any>();
+    (checks ?? []).forEach((c: any) => m.set(c.id, c));
+    return m;
+  }, [checks]);
   const { data: selectedCheck, isLoading: isLoadingSelectedCheck } = useQuery({
     queryKey: ["withdrawal-check", form.funding_check_id],
     enabled: !!form.funding_check_id,
@@ -176,7 +182,7 @@ function WithdrawalsPage() {
   const totalMonth = approved.filter((w: any) => w.withdrawal_date >= monthStart).reduce((s: number, w: any) => s + Number(w.amount), 0);
   const totalAll = approved.reduce((s: number, w: any) => s + Number(w.amount), 0);
 
-  function openNew() { setForm(empty); setFile(null); setOpen(true); }
+  function openNew() { setForm(empty); setAllocations([]); setFile(null); setOpen(true); }
   function openEdit(w: any) {
     setEditForm({
       withdrawal_date: w.withdrawal_date,
@@ -215,11 +221,29 @@ function WithdrawalsPage() {
     qc.invalidateQueries({ queryKey: ["withdrawal-details"] });
   }
 
+  const allocationsTotal = useMemo(
+    () => allocations.reduce((s, a) => s + (Number(a.amount) || 0), 0),
+    [allocations],
+  );
+  const allocationsSumError = allocations.length > 0 && Math.abs(allocationsTotal - Number(form.amount || 0)) > 0.005
+    ? `مجموع التخصيصات (${allocationsTotal.toFixed(2)}) لا يساوي مبلغ المسحوبة (${Number(form.amount || 0).toFixed(2)})`
+    : undefined;
+  const allocationsDupError = allocations.length > 0
+    && new Set(allocations.map((a) => a.funding_check_id).filter(Boolean)).size !== allocations.filter((a) => a.funding_check_id).length
+    ? "لا يمكن تكرار نفس الصك أكثر من مرة" : undefined;
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
-      if (selectedCheck?.remaining != null && Number(form.amount) > Number(selectedCheck.remaining)) {
+      const useMulti = allocations.length > 0;
+      if (useMulti) {
+        if (allocationsSumError) { toast.error(allocationsSumError); return; }
+        if (allocationsDupError) { toast.error(allocationsDupError); return; }
+        if (allocations.some((a) => !a.funding_check_id || !a.amount || Number(a.amount) <= 0)) {
+          toast.error("يجب تعبئة الصك والمبلغ لكل تخصيص"); return;
+        }
+      } else if (form.funding_check_id && selectedCheck?.remaining != null && Number(form.amount) > Number(selectedCheck.remaining)) {
         toast.error("رصيد الصك غير كافٍ");
         return;
       }
@@ -236,11 +260,14 @@ function WithdrawalsPage() {
         _person_role: form.person_role,
         _amount: Number(form.amount),
         _payment_method: form.payment_method,
-        _cash_account_id: form.cash_account_id || null,
-        _funding_check_id: form.funding_check_id || null,
+        _cash_account_id: useMulti ? null : (form.cash_account_id || null),
+        _funding_check_id: useMulti ? null : (form.funding_check_id || null),
         _project_id: form.project_id || null,
         _description: form.description || null,
         _attachment_url: attachment_url,
+        _allocations: useMulti
+          ? allocations.map((a) => ({ funding_check_id: a.funding_check_id, amount: Number(a.amount) }))
+          : null,
       } as any);
       if (error) throw error;
       toast.success("تم تسجيل المسحوبة كمسوّدة", { description: "تحتاج اعتماد لإنشاء القيد المحاسبي" });
@@ -328,15 +355,18 @@ function WithdrawalsPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2"><Label>صك التمويل (اختياري)</Label>
-                    <Select value={form.funding_check_id || "none"} onValueChange={(v) => setForm({ ...form, funding_check_id: v === "none" ? "" : v })}>
+                  <div className="space-y-2"><Label>صك التمويل (اختياري — للصك الواحد)</Label>
+                    <Select value={form.funding_check_id || "none"} disabled={allocations.length > 0} onValueChange={(v) => setForm({ ...form, funding_check_id: v === "none" ? "" : v })}>
                       <SelectTrigger><SelectValue placeholder="اختر..." /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">— بدون —</SelectItem>
                         {(checks ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>صك {c.check_number} — {c.funders?.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    {form.funding_check_id && selectedCheck && (
+                    {allocations.length > 0 && (
+                      <div className="text-xs text-muted-foreground">معطّل — يتم استخدام التخصيصات المتعددة أدناه.</div>
+                    )}
+                    {allocations.length === 0 && form.funding_check_id && selectedCheck && (
                       <div className="rounded-md border border-input p-3 bg-muted text-sm">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <div>رقم الصك: <span className="font-medium">{selectedCheck.check_number}</span></div>
@@ -365,17 +395,74 @@ function WithdrawalsPage() {
                     </Select>
                   </div>
                 </div>
+
+                <div className="space-y-2 rounded-md border p-3">
+                  <div className="flex items-center justify-between">
+                    <Label>تخصيصات متعددة الصكوك (اختياري)</Label>
+                    <Button type="button" size="sm" variant="outline"
+                      onClick={() => {
+                        setAllocations([...allocations, { funding_check_id: "", amount: "" }]);
+                        if (allocations.length === 0) setForm({ ...form, funding_check_id: "" });
+                      }}
+                    ><Plus className="size-3.5" /> إضافة صك</Button>
+                  </div>
+                  {allocations.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">استخدم "إضافة صك" لتقسيم المسحوبة على عدة صكوك. يتم تعطيل خانة الصك الواحد أعلاه تلقائياً.</div>
+                  ) : (
+                    <>
+                      {allocations.map((a, idx) => {
+                        const c = a.funding_check_id ? checksById.get(a.funding_check_id) : null;
+                        return (
+                          <div key={idx} className="grid grid-cols-1 sm:grid-cols-[1fr_140px_auto] gap-2 items-start">
+                            <Select value={a.funding_check_id || ""} onValueChange={(v) => {
+                              const next = [...allocations]; next[idx] = { ...next[idx], funding_check_id: v }; setAllocations(next);
+                            }}>
+                              <SelectTrigger><SelectValue placeholder="اختر الصك" /></SelectTrigger>
+                              <SelectContent>
+                                {(checks ?? [])
+                                  .filter((ch: any) => ch.id === a.funding_check_id || !allocations.some((x, i) => i !== idx && x.funding_check_id === ch.id))
+                                  .map((ch: any) => (
+                                    <SelectItem key={ch.id} value={ch.id}>صك {ch.check_number} — {ch.funders?.name} ({formatCurrency(ch.amount)})</SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                            <Input type="number" step="0.01" min="0.01" placeholder="المبلغ" dir="ltr" value={a.amount} onChange={(e) => {
+                              const next = [...allocations]; next[idx] = { ...next[idx], amount: e.target.value }; setAllocations(next);
+                            }} />
+                            <Button type="button" size="icon" variant="ghost" onClick={() => setAllocations(allocations.filter((_, i) => i !== idx))} title="حذف">
+                              <Trash2 className="size-4 text-destructive" />
+                            </Button>
+                            {c && (
+                              <div className="sm:col-span-3 text-xs text-muted-foreground">
+                                الممول: {c.funders?.name || "—"} • حساب الصرف: {c.cash_accounts?.name || "—"} • المبلغ الأصلي: {formatCurrency(c.amount)}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <div className="flex items-center justify-between text-sm pt-1 border-t">
+                        <span>مجموع التخصيصات</span>
+                        <span className="tabular-nums font-medium">{formatCurrency(allocationsTotal)} / {formatCurrency(Number(form.amount || 0))}</span>
+                      </div>
+                      {allocationsSumError && <div className="text-xs text-destructive">{allocationsSumError}</div>}
+                      {allocationsDupError && <div className="text-xs text-destructive">{allocationsDupError}</div>}
+                    </>
+                  )}
+                </div>
+
                 <div className="space-y-2"><Label>الوصف</Label>
                   <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
                 </div>
                 <div className="space-y-2"><Label>مرفق (اختياري)</Label>
                   <Input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
                 </div>
-                {checkBalanceError && (
+                {allocations.length === 0 && checkBalanceError && (
                   <div className="text-sm text-destructive font-medium">{checkBalanceError}</div>
                 )}
                 <DialogFooter>
-                  <Button type="submit" disabled={busy || !!checkBalanceError}>{busy ? "جاري الحفظ..." : "حفظ كمسوّدة"}</Button>
+                  <Button type="submit" disabled={busy || (allocations.length === 0 ? !!checkBalanceError : !!(allocationsSumError || allocationsDupError))}>
+                    {busy ? "جاري الحفظ..." : "حفظ كمسوّدة"}
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
