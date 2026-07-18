@@ -355,15 +355,18 @@ function WithdrawalsPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2"><Label>صك التمويل (اختياري)</Label>
-                    <Select value={form.funding_check_id || "none"} onValueChange={(v) => setForm({ ...form, funding_check_id: v === "none" ? "" : v })}>
+                  <div className="space-y-2"><Label>صك التمويل (اختياري — للصك الواحد)</Label>
+                    <Select value={form.funding_check_id || "none"} disabled={allocations.length > 0} onValueChange={(v) => setForm({ ...form, funding_check_id: v === "none" ? "" : v })}>
                       <SelectTrigger><SelectValue placeholder="اختر..." /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">— بدون —</SelectItem>
                         {(checks ?? []).map((c: any) => <SelectItem key={c.id} value={c.id}>صك {c.check_number} — {c.funders?.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    {form.funding_check_id && selectedCheck && (
+                    {allocations.length > 0 && (
+                      <div className="text-xs text-muted-foreground">معطّل — يتم استخدام التخصيصات المتعددة أدناه.</div>
+                    )}
+                    {allocations.length === 0 && form.funding_check_id && selectedCheck && (
                       <div className="rounded-md border border-input p-3 bg-muted text-sm">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <div>رقم الصك: <span className="font-medium">{selectedCheck.check_number}</span></div>
