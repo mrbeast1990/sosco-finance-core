@@ -21,6 +21,7 @@ import { LoadingState, EmptyState } from "@/components/States";
 import { useOnlineStatus } from "@/lib/use-online-status";
 import { enqueue } from "@/lib/offline-queue";
 import { AttachmentError, EXCEL_ACCEPT, EXCEL_EXTENSIONS, getAttachmentSignedUrl, IMAGE_DOCUMENT_ACCEPT, IMAGE_DOCUMENT_EXTENSIONS, uploadAttachment, validateAttachment } from "@/lib/storage-attachments";
+import { Kpi } from "@/components/reports/ReportShell";
 
 export const Route = createFileRoute("/_authenticated/expenses")({ component: ExpensesPage });
 
@@ -76,7 +77,11 @@ function ExpensesPage() {
   const [filterScope, setFilterScope] = useState("all");
   const [filterAsset, setFilterAsset] = useState("all");
   const [filterProject, setFilterProject] = useState("all");
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState("all");
+  const [dateMode, setDateMode] = useState<"month" | "range" | "all">("month");
   const [currentMonth, setCurrentMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(0);
 
   const [open, setOpen] = useState(false);
@@ -164,10 +169,36 @@ function ExpensesPage() {
     },
   });
 
+  const dateRange = useMemo(() => {
+    if (dateMode === "month") return getMonthRange(currentMonth);
+    if (dateMode === "range") {
+      return { start: fromDate || null, end: toDate || null };
+    }
+    return { start: null, end: null };
+  }, [dateMode, currentMonth, fromDate, toDate]);
+
+  function applyDateFilter<T extends { gte: any; lt: any; lte: any }>(q: T): T {
+    let qq: any = q;
+    if (dateRange.start) qq = qq.gte("expense_date", dateRange.start);
+    if (dateMode === "month" && dateRange.end) qq = qq.lt("expense_date", dateRange.end);
+    if (dateMode === "range" && dateRange.end) qq = qq.lte("expense_date", dateRange.end);
+    return qq;
+  }
+
+  function applyCommonFilters(q: any): any {
+    let qq = applyDateFilter(q);
+    if (filterScope !== "all") qq = qq.eq("expense_scope", filterScope);
+    if (filterScope === "project" && filterProject !== "all") qq = qq.eq("project_id", filterProject);
+    if (filterScope === "asset" && filterAsset !== "all") qq = qq.eq("asset_id", filterAsset);
+    if (filterPaymentStatus !== "all") qq = qq.eq("payment_status", filterPaymentStatus);
+    return qq;
+  }
+
+  const commonKey = [dateMode, currentMonth, fromDate, toDate, filterScope, filterProject, filterAsset, filterPaymentStatus];
+
   const { data, isLoading } = useQuery({
-    queryKey: ["expenses", currentMonth, page, filterScope, filterProject, filterAsset],
+    queryKey: ["expenses", ...commonKey, page],
     queryFn: async () => {
-      const { start, end } = getMonthRange(currentMonth);
       const from = page * PAGE_SIZE;
       const to = from + PAGE_SIZE;
 
@@ -187,16 +218,10 @@ function ExpensesPage() {
           )
         `)
         .is("deleted_at", null)
-        .gte("expense_date", start)
-        .lt("expense_date", end)
         .order("expense_date", { ascending: false })
         .range(from, to);
 
-      if (filterScope !== "all") query = query.eq("expense_scope", filterScope);
-      if (filterScope === "project" && filterProject !== "all") {
-        query = query.eq("project_id", filterProject);
-      }
-      if (filterScope === "asset" && filterAsset !== "all") query = query.eq("asset_id", filterAsset);
+      query = applyCommonFilters(query);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -207,6 +232,40 @@ function ExpensesPage() {
       };
     },
   });
+
+  const { data: summary } = useQuery({
+    queryKey: ["expenses-summary", ...commonKey],
+    queryFn: async () => {
+      let q = supabase
+        .from("expenses")
+        .select("amount, expense_scope, payment_status")
+        .is("deleted_at", null)
+        .limit(10000);
+      q = applyCommonFilters(q);
+      const { data, error } = await q;
+      if (error) throw error;
+      const rows = data ?? [];
+      const acc = {
+        count: rows.length,
+        total: 0,
+        paid: 0,
+        payable: 0,
+        project: 0,
+        asset: 0,
+        general: 0,
+      };
+      for (const r of rows as any[]) {
+        const amt = Number(r.amount) || 0;
+        acc.total += amt;
+        if (r.payment_status === "payable") acc.payable += amt; else acc.paid += amt;
+        if (r.expense_scope === "project") acc.project += amt;
+        else if (r.expense_scope === "asset") acc.asset += amt;
+        else acc.general += amt;
+      }
+      return acc;
+    },
+  });
+
 
   const rows = data?.rows ?? [];
   const hasNext = data?.hasNext ?? false;
@@ -832,47 +891,78 @@ function ExpensesPage() {
         )}
       />
 
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
+        <Kpi label="عدد المصروفات" value={String(summary?.count ?? 0)} tone="info" />
+        <Kpi label="الإجمالي" value={formatCurrency(summary?.total ?? 0)} tone="info" />
+        <Kpi label="المدفوع" value={formatCurrency(summary?.paid ?? 0)} tone="ok" />
+        <Kpi label="الآجل" value={formatCurrency(summary?.payable ?? 0)} tone="warn" />
+        <Kpi label="مصاريف المشاريع" value={formatCurrency(summary?.project ?? 0)} />
+        <Kpi label="مصاريف الأصول + عام" value={formatCurrency((summary?.asset ?? 0) + (summary?.general ?? 0))} hint={`أصول: ${formatCurrency(summary?.asset ?? 0)} • عام: ${formatCurrency(summary?.general ?? 0)}`} />
+      </div>
+
       <Card>
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setCurrentMonth(shiftMonth(currentMonth, -1));
-                  setPage(0);
-                }}
-              >
-                الشهر السابق
-              </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={dateMode} onValueChange={(v: any) => { setDateMode(v); setPage(0); }}>
+                <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="month">شهر</SelectItem>
+                  <SelectItem value="range">من — إلى</SelectItem>
+                  <SelectItem value="all">الكل</SelectItem>
+                </SelectContent>
+              </Select>
 
-              <Input
-                type="month"
-                value={currentMonth}
-                onChange={(e) => {
-                  setCurrentMonth(e.target.value);
-                  setPage(0);
-                }}
-                className="w-44"
-              />
+              {dateMode === "month" && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => { setCurrentMonth(shiftMonth(currentMonth, -1)); setPage(0); }}
+                  >
+                    الشهر السابق
+                  </Button>
+                  <Input
+                    type="month"
+                    value={currentMonth}
+                    onChange={(e) => { setCurrentMonth(e.target.value); setPage(0); }}
+                    className="w-44"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => { setCurrentMonth(shiftMonth(currentMonth, 1)); setPage(0); }}
+                  >
+                    الشهر التالي
+                  </Button>
+                </>
+              )}
 
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setCurrentMonth(shiftMonth(currentMonth, 1));
-                  setPage(0);
-                }}
-              >
-                الشهر التالي
-              </Button>
+              {dateMode === "range" && (
+                <>
+                  <Input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => { setFromDate(e.target.value); setPage(0); }}
+                    className="w-44"
+                    placeholder="من"
+                  />
+                  <span className="text-sm text-muted-foreground">إلى</span>
+                  <Input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => { setToDate(e.target.value); setPage(0); }}
+                    className="w-44"
+                  />
+                </>
+              )}
             </div>
 
             <div className="text-sm text-muted-foreground">
               عرض 50 مصروفاً لكل صفحة
             </div>
           </div>
+
 
           <div className="flex flex-col sm:flex-row gap-2 mb-4">
             <div className="relative flex-1">
@@ -886,8 +976,12 @@ function ExpensesPage() {
             </div>
 
             <Select value={filterScope} onValueChange={(v) => { setFilterScope(v); setPage(0); }}>
-              <SelectTrigger className="sm:w-48"><SelectValue placeholder="نوع الارتباط" /></SelectTrigger>
+              <SelectTrigger className="sm:w-40"><SelectValue placeholder="نوع الارتباط" /></SelectTrigger>
               <SelectContent><SelectItem value="all">الكل</SelectItem><SelectItem value="project">مشروع</SelectItem><SelectItem value="general">عام</SelectItem><SelectItem value="asset">أصل</SelectItem></SelectContent>
+            </Select>
+            <Select value={filterPaymentStatus} onValueChange={(v) => { setFilterPaymentStatus(v); setPage(0); }}>
+              <SelectTrigger className="sm:w-36"><SelectValue placeholder="حالة الدفع" /></SelectTrigger>
+              <SelectContent><SelectItem value="all">الكل</SelectItem><SelectItem value="paid">مدفوع</SelectItem><SelectItem value="payable">آجل</SelectItem></SelectContent>
             </Select>
             {filterScope === "project" && (
             <Select
