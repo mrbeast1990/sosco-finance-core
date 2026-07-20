@@ -21,6 +21,7 @@ import { LoadingState, EmptyState } from "@/components/States";
 import { useOnlineStatus } from "@/lib/use-online-status";
 import { enqueue } from "@/lib/offline-queue";
 import { AttachmentError, EXCEL_ACCEPT, EXCEL_EXTENSIONS, getAttachmentSignedUrl, IMAGE_DOCUMENT_ACCEPT, IMAGE_DOCUMENT_EXTENSIONS, uploadAttachment, validateAttachment } from "@/lib/storage-attachments";
+import { Kpi } from "@/components/reports/ReportShell";
 
 export const Route = createFileRoute("/_authenticated/expenses")({ component: ExpensesPage });
 
