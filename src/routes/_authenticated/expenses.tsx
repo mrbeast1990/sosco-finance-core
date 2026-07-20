@@ -976,8 +976,12 @@ function ExpensesPage() {
             </div>
 
             <Select value={filterScope} onValueChange={(v) => { setFilterScope(v); setPage(0); }}>
-              <SelectTrigger className="sm:w-48"><SelectValue placeholder="نوع الارتباط" /></SelectTrigger>
+              <SelectTrigger className="sm:w-40"><SelectValue placeholder="نوع الارتباط" /></SelectTrigger>
               <SelectContent><SelectItem value="all">الكل</SelectItem><SelectItem value="project">مشروع</SelectItem><SelectItem value="general">عام</SelectItem><SelectItem value="asset">أصل</SelectItem></SelectContent>
+            </Select>
+            <Select value={filterPaymentStatus} onValueChange={(v) => { setFilterPaymentStatus(v); setPage(0); }}>
+              <SelectTrigger className="sm:w-36"><SelectValue placeholder="حالة الدفع" /></SelectTrigger>
+              <SelectContent><SelectItem value="all">الكل</SelectItem><SelectItem value="paid">مدفوع</SelectItem><SelectItem value="payable">آجل</SelectItem></SelectContent>
             </Select>
             {filterScope === "project" && (
             <Select
