@@ -26,6 +26,7 @@ import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAssetsRegistryRouteImport } from './routes/_authenticated/assets-registry'
 import { Route as AuthenticatedAccountsRouteImport } from './routes/_authenticated/accounts'
 import { Route as AuthenticatedFundersIndexRouteImport } from './routes/_authenticated/funders.index'
+import { Route as AuthenticatedProjectsProjectIdRouteImport } from './routes/_authenticated/projects.$projectId'
 import { Route as AuthenticatedFundersFunderIdRouteImport } from './routes/_authenticated/funders.$funderId'
 
 const SignupRoute = SignupRouteImport.update({
@@ -117,6 +118,12 @@ const AuthenticatedFundersIndexRoute =
     path: '/funders/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedProjectsProjectIdRoute =
+  AuthenticatedProjectsProjectIdRouteImport.update({
+    id: '/$projectId',
+    path: '/$projectId',
+    getParentRoute: () => AuthenticatedProjectsRoute,
+  } as any)
 const AuthenticatedFundersFunderIdRoute =
   AuthenticatedFundersFunderIdRouteImport.update({
     id: '/funders/$funderId',
@@ -136,11 +143,12 @@ export interface FileRoutesByFullPath {
   '/journal-entries': typeof AuthenticatedJournalEntriesRoute
   '/offline-queue': typeof AuthenticatedOfflineQueueRoute
   '/payables': typeof AuthenticatedPayablesRoute
-  '/projects': typeof AuthenticatedProjectsRoute
+  '/projects': typeof AuthenticatedProjectsRouteWithChildren
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/withdrawals': typeof AuthenticatedWithdrawalsRoute
   '/funders/$funderId': typeof AuthenticatedFundersFunderIdRoute
+  '/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
   '/funders/': typeof AuthenticatedFundersIndexRoute
 }
 export interface FileRoutesByTo {
@@ -155,11 +163,12 @@ export interface FileRoutesByTo {
   '/journal-entries': typeof AuthenticatedJournalEntriesRoute
   '/offline-queue': typeof AuthenticatedOfflineQueueRoute
   '/payables': typeof AuthenticatedPayablesRoute
-  '/projects': typeof AuthenticatedProjectsRoute
+  '/projects': typeof AuthenticatedProjectsRouteWithChildren
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/withdrawals': typeof AuthenticatedWithdrawalsRoute
   '/funders/$funderId': typeof AuthenticatedFundersFunderIdRoute
+  '/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
   '/funders': typeof AuthenticatedFundersIndexRoute
 }
 export interface FileRoutesById {
@@ -176,11 +185,12 @@ export interface FileRoutesById {
   '/_authenticated/journal-entries': typeof AuthenticatedJournalEntriesRoute
   '/_authenticated/offline-queue': typeof AuthenticatedOfflineQueueRoute
   '/_authenticated/payables': typeof AuthenticatedPayablesRoute
-  '/_authenticated/projects': typeof AuthenticatedProjectsRoute
+  '/_authenticated/projects': typeof AuthenticatedProjectsRouteWithChildren
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/withdrawals': typeof AuthenticatedWithdrawalsRoute
   '/_authenticated/funders/$funderId': typeof AuthenticatedFundersFunderIdRoute
+  '/_authenticated/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
   '/_authenticated/funders/': typeof AuthenticatedFundersIndexRoute
 }
 export interface FileRouteTypes {
@@ -202,6 +212,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/withdrawals'
     | '/funders/$funderId'
+    | '/projects/$projectId'
     | '/funders/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -221,6 +232,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/withdrawals'
     | '/funders/$funderId'
+    | '/projects/$projectId'
     | '/funders'
   id:
     | '__root__'
@@ -241,6 +253,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/withdrawals'
     | '/_authenticated/funders/$funderId'
+    | '/_authenticated/projects/$projectId'
     | '/_authenticated/funders/'
   fileRoutesById: FileRoutesById
 }
@@ -372,6 +385,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFundersIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/projects/$projectId': {
+      id: '/_authenticated/projects/$projectId'
+      path: '/$projectId'
+      fullPath: '/projects/$projectId'
+      preLoaderRoute: typeof AuthenticatedProjectsProjectIdRouteImport
+      parentRoute: typeof AuthenticatedProjectsRoute
+    }
     '/_authenticated/funders/$funderId': {
       id: '/_authenticated/funders/$funderId'
       path: '/funders/$funderId'
@@ -382,6 +402,19 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedProjectsRouteChildren {
+  AuthenticatedProjectsProjectIdRoute: typeof AuthenticatedProjectsProjectIdRoute
+}
+
+const AuthenticatedProjectsRouteChildren: AuthenticatedProjectsRouteChildren = {
+  AuthenticatedProjectsProjectIdRoute: AuthenticatedProjectsProjectIdRoute,
+}
+
+const AuthenticatedProjectsRouteWithChildren =
+  AuthenticatedProjectsRoute._addFileChildren(
+    AuthenticatedProjectsRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedAccountsRoute: typeof AuthenticatedAccountsRoute
   AuthenticatedAssetsRegistryRoute: typeof AuthenticatedAssetsRegistryRoute
@@ -391,7 +424,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedJournalEntriesRoute: typeof AuthenticatedJournalEntriesRoute
   AuthenticatedOfflineQueueRoute: typeof AuthenticatedOfflineQueueRoute
   AuthenticatedPayablesRoute: typeof AuthenticatedPayablesRoute
-  AuthenticatedProjectsRoute: typeof AuthenticatedProjectsRoute
+  AuthenticatedProjectsRoute: typeof AuthenticatedProjectsRouteWithChildren
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedWithdrawalsRoute: typeof AuthenticatedWithdrawalsRoute
@@ -408,7 +441,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedJournalEntriesRoute: AuthenticatedJournalEntriesRoute,
   AuthenticatedOfflineQueueRoute: AuthenticatedOfflineQueueRoute,
   AuthenticatedPayablesRoute: AuthenticatedPayablesRoute,
-  AuthenticatedProjectsRoute: AuthenticatedProjectsRoute,
+  AuthenticatedProjectsRoute: AuthenticatedProjectsRouteWithChildren,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedWithdrawalsRoute: AuthenticatedWithdrawalsRoute,
