@@ -76,7 +76,11 @@ function ExpensesPage() {
   const [filterScope, setFilterScope] = useState("all");
   const [filterAsset, setFilterAsset] = useState("all");
   const [filterProject, setFilterProject] = useState("all");
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState("all");
+  const [dateMode, setDateMode] = useState<"month" | "range" | "all">("month");
   const [currentMonth, setCurrentMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(0);
 
   const [open, setOpen] = useState(false);
