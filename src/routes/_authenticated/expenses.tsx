@@ -168,10 +168,36 @@ function ExpensesPage() {
     },
   });
 
+  const dateRange = useMemo(() => {
+    if (dateMode === "month") return getMonthRange(currentMonth);
+    if (dateMode === "range") {
+      return { start: fromDate || null, end: toDate || null };
+    }
+    return { start: null, end: null };
+  }, [dateMode, currentMonth, fromDate, toDate]);
+
+  function applyDateFilter<T extends { gte: any; lt: any; lte: any }>(q: T): T {
+    let qq: any = q;
+    if (dateRange.start) qq = qq.gte("expense_date", dateRange.start);
+    if (dateMode === "month" && dateRange.end) qq = qq.lt("expense_date", dateRange.end);
+    if (dateMode === "range" && dateRange.end) qq = qq.lte("expense_date", dateRange.end);
+    return qq;
+  }
+
+  function applyCommonFilters(q: any): any {
+    let qq = applyDateFilter(q);
+    if (filterScope !== "all") qq = qq.eq("expense_scope", filterScope);
+    if (filterScope === "project" && filterProject !== "all") qq = qq.eq("project_id", filterProject);
+    if (filterScope === "asset" && filterAsset !== "all") qq = qq.eq("asset_id", filterAsset);
+    if (filterPaymentStatus !== "all") qq = qq.eq("payment_status", filterPaymentStatus);
+    return qq;
+  }
+
+  const commonKey = [dateMode, currentMonth, fromDate, toDate, filterScope, filterProject, filterAsset, filterPaymentStatus];
+
   const { data, isLoading } = useQuery({
-    queryKey: ["expenses", currentMonth, page, filterScope, filterProject, filterAsset],
+    queryKey: ["expenses", ...commonKey, page],
     queryFn: async () => {
-      const { start, end } = getMonthRange(currentMonth);
       const from = page * PAGE_SIZE;
       const to = from + PAGE_SIZE;
 
@@ -191,16 +217,10 @@ function ExpensesPage() {
           )
         `)
         .is("deleted_at", null)
-        .gte("expense_date", start)
-        .lt("expense_date", end)
         .order("expense_date", { ascending: false })
         .range(from, to);
 
-      if (filterScope !== "all") query = query.eq("expense_scope", filterScope);
-      if (filterScope === "project" && filterProject !== "all") {
-        query = query.eq("project_id", filterProject);
-      }
-      if (filterScope === "asset" && filterAsset !== "all") query = query.eq("asset_id", filterAsset);
+      query = applyCommonFilters(query);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -211,6 +231,40 @@ function ExpensesPage() {
       };
     },
   });
+
+  const { data: summary } = useQuery({
+    queryKey: ["expenses-summary", ...commonKey],
+    queryFn: async () => {
+      let q = supabase
+        .from("expenses")
+        .select("amount, expense_scope, payment_status")
+        .is("deleted_at", null)
+        .limit(10000);
+      q = applyCommonFilters(q);
+      const { data, error } = await q;
+      if (error) throw error;
+      const rows = data ?? [];
+      const acc = {
+        count: rows.length,
+        total: 0,
+        paid: 0,
+        payable: 0,
+        project: 0,
+        asset: 0,
+        general: 0,
+      };
+      for (const r of rows as any[]) {
+        const amt = Number(r.amount) || 0;
+        acc.total += amt;
+        if (r.payment_status === "payable") acc.payable += amt; else acc.paid += amt;
+        if (r.expense_scope === "project") acc.project += amt;
+        else if (r.expense_scope === "asset") acc.asset += amt;
+        else acc.general += amt;
+      }
+      return acc;
+    },
+  });
+
 
   const rows = data?.rows ?? [];
   const hasNext = data?.hasNext ?? false;
