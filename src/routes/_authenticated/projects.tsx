@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -123,8 +123,12 @@ function ProjectsPage() {
               <TableBody>
                 {filtered.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell className="font-medium tabular-nums">{p.code}</TableCell>
-                    <TableCell>{p.name}</TableCell>
+                    <TableCell className="font-medium tabular-nums">
+                      <Link to="/projects/$projectId" params={{ projectId: p.id }} className="text-primary hover:underline">{p.code}</Link>
+                    </TableCell>
+                    <TableCell>
+                      <Link to="/projects/$projectId" params={{ projectId: p.id }} className="hover:underline">{p.name}</Link>
+                    </TableCell>
                     <TableCell><Badge variant={statusVariants[p.status]}>{statusLabels[p.status]}</Badge></TableCell>
                     <TableCell className="text-muted-foreground text-sm">{formatDate(p.created_at)}</TableCell>
                     {canWrite && (
