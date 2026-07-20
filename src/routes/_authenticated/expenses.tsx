@@ -891,47 +891,78 @@ function ExpensesPage() {
         )}
       />
 
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
+        <Kpi label="عدد المصروفات" value={String(summary?.count ?? 0)} tone="info" />
+        <Kpi label="الإجمالي" value={formatCurrency(summary?.total ?? 0)} tone="info" />
+        <Kpi label="المدفوع" value={formatCurrency(summary?.paid ?? 0)} tone="ok" />
+        <Kpi label="الآجل" value={formatCurrency(summary?.payable ?? 0)} tone="warn" />
+        <Kpi label="مصاريف المشاريع" value={formatCurrency(summary?.project ?? 0)} />
+        <Kpi label="مصاريف الأصول + عام" value={formatCurrency((summary?.asset ?? 0) + (summary?.general ?? 0))} hint={`أصول: ${formatCurrency(summary?.asset ?? 0)} • عام: ${formatCurrency(summary?.general ?? 0)}`} />
+      </div>
+
       <Card>
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setCurrentMonth(shiftMonth(currentMonth, -1));
-                  setPage(0);
-                }}
-              >
-                الشهر السابق
-              </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={dateMode} onValueChange={(v: any) => { setDateMode(v); setPage(0); }}>
+                <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="month">شهر</SelectItem>
+                  <SelectItem value="range">من — إلى</SelectItem>
+                  <SelectItem value="all">الكل</SelectItem>
+                </SelectContent>
+              </Select>
 
-              <Input
-                type="month"
-                value={currentMonth}
-                onChange={(e) => {
-                  setCurrentMonth(e.target.value);
-                  setPage(0);
-                }}
-                className="w-44"
-              />
+              {dateMode === "month" && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => { setCurrentMonth(shiftMonth(currentMonth, -1)); setPage(0); }}
+                  >
+                    الشهر السابق
+                  </Button>
+                  <Input
+                    type="month"
+                    value={currentMonth}
+                    onChange={(e) => { setCurrentMonth(e.target.value); setPage(0); }}
+                    className="w-44"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => { setCurrentMonth(shiftMonth(currentMonth, 1)); setPage(0); }}
+                  >
+                    الشهر التالي
+                  </Button>
+                </>
+              )}
 
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setCurrentMonth(shiftMonth(currentMonth, 1));
-                  setPage(0);
-                }}
-              >
-                الشهر التالي
-              </Button>
+              {dateMode === "range" && (
+                <>
+                  <Input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => { setFromDate(e.target.value); setPage(0); }}
+                    className="w-44"
+                    placeholder="من"
+                  />
+                  <span className="text-sm text-muted-foreground">إلى</span>
+                  <Input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => { setToDate(e.target.value); setPage(0); }}
+                    className="w-44"
+                  />
+                </>
+              )}
             </div>
 
             <div className="text-sm text-muted-foreground">
               عرض 50 مصروفاً لكل صفحة
             </div>
           </div>
+
 
           <div className="flex flex-col sm:flex-row gap-2 mb-4">
             <div className="relative flex-1">
