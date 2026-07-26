@@ -283,6 +283,7 @@ function FunderProfile() {
                     </div>
                     <div className="space-y-2"><Label>تاريخ الاستلام</Label>
                       <Input required type="date" value={form.received_date} onChange={(e) => setForm({ ...form, received_date: e.target.value })} /></div>
+                    {can("attachments.upload") && (
                     <div className="space-y-2"><Label>صورة الصك (اختياري)</Label>
                       <Input type="file" accept={IMAGE_DOCUMENT_ACCEPT} onChange={(e) => {
                         const selected = e.target.files?.[0] ?? null;
@@ -291,6 +292,7 @@ function FunderProfile() {
                       }} />
                       {checkFile && <p className="text-xs text-muted-foreground">{checkFile.name}</p>}
                     </div>
+                    )}
                     <div className="space-y-2"><Label>ملاحظات</Label>
                       <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
                     <DialogFooter><Button type="submit" disabled={busy}>{busy ? "جاري الحفظ..." : "حفظ"}</Button></DialogFooter>
@@ -446,6 +448,7 @@ function FunderProfile() {
                 </div>
                 <div className="space-y-2"><Label>تاريخ الاستلام</Label>
                   <Input required type="date" value={form.received_date} onChange={(e) => setForm({ ...form, received_date: e.target.value })} /></div>
+                {can("attachments.upload") && (
                 <div className="space-y-2"><Label>صورة الصك (اختياري)</Label>
                   <Input type="file" accept={IMAGE_DOCUMENT_ACCEPT} onChange={(e) => {
                     const selected = e.target.files?.[0] ?? null;
@@ -458,6 +461,7 @@ function FunderProfile() {
                     </Button>
                   )}
                 </div>
+                )}
                 <div className="space-y-2"><Label>ملاحظات</Label>
                   <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
                 <DialogFooter><Button type="submit">حفظ التعديلات</Button></DialogFooter>

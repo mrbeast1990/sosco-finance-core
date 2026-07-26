@@ -160,6 +160,7 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: "ok"
 }
 
 function PayDialog({ payable, onClose, onPaid, userId }: { payable: any | null; onClose: () => void; onPaid: () => void; userId: string }) {
+  const { can } = useAuth();
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
     payment_date: new Date().toISOString().slice(0, 10),
@@ -277,9 +278,11 @@ function PayDialog({ payable, onClose, onPaid, userId }: { payable: any | null; 
               </Select>
             </div>
           )}
+          {can("attachments.upload") && (
           <div className="space-y-2"><Label>مرفق (اختياري)</Label>
             <Input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </div>
+          )}
           <div className="space-y-2"><Label>ملاحظات</Label>
             <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </div>

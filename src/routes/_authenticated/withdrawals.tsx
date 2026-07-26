@@ -453,9 +453,11 @@ function WithdrawalsPage() {
                 <div className="space-y-2"><Label>الوصف</Label>
                   <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
                 </div>
+                {can("attachments.upload") && (
                 <div className="space-y-2"><Label>مرفق (اختياري)</Label>
                   <Input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
                 </div>
+                )}
                 {allocations.length === 0 && checkBalanceError && (
                   <div className="text-sm text-destructive font-medium">{checkBalanceError}</div>
                 )}

@@ -844,6 +844,7 @@ function ExpensesPage() {
                     />
                   </div>
 
+                  {can("attachments.upload") && (
                   <div className="space-y-2">
                     <Label>مرفق صورة/PDF (اختياري)</Label>
                     <Input
@@ -856,8 +857,10 @@ function ExpensesPage() {
                       }}
                     />
                   </div>
+                  )}
                 </div>
 
+                {can("attachments.upload") && (
                 <div className="space-y-2">
                   <Label>مرفق Excel (اختياري)</Label>
                   <Input
@@ -871,6 +874,7 @@ function ExpensesPage() {
                   />
                   {excelFile && <p className="text-xs text-muted-foreground">{excelFile.name}</p>}
                 </div>
+                )}
 
                 <div className="space-y-2">
                   <Label>الوصف</Label>
