@@ -160,6 +160,7 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: "ok"
 }
 
 function PayDialog({ payable, onClose, onPaid, userId }: { payable: any | null; onClose: () => void; onPaid: () => void; userId: string }) {
+  const { can } = useAuth();
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
     payment_date: new Date().toISOString().slice(0, 10),
