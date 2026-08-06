@@ -54,6 +54,9 @@ function WithdrawalsPage() {
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<any | null>(null);
 
   const [search, setSearch] = useState("");
+  const [fPerson, setFPerson] = useState("all");
+  const [personMode, setPersonMode] = useState<"preset" | "custom">("preset");
+  const [editPersonMode, setEditPersonMode] = useState<"preset" | "custom">("preset");
   const [fRole, setFRole] = useState("all");
   const [fMethod, setFMethod] = useState("all");
   const [fStatus, setFStatus] = useState("all");
