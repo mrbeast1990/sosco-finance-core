@@ -257,6 +257,7 @@ function WithdrawalsPage() {
         toast.error("رصيد الصك غير كافٍ");
         return;
       }
+      if (!form.person_name.trim()) { toast.error("يجب اختيار اسم الشخص"); return; }
       let attachment_url: string | null = null;
       if (file) {
         const path = `withdrawals/${user!.id}/${Date.now()}-${file.name}`;
