@@ -487,6 +487,14 @@ function WithdrawalsPage() {
             </div>
             <Input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} placeholder="من" />
             <Input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} placeholder="إلى" />
+            <Select value={fPerson} onValueChange={setFPerson}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل الأشخاص</SelectItem>
+                {PEOPLE.map((p) => <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>)}
+                <SelectItem value="__other__">أخرى</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={fRole} onValueChange={setFRole}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
