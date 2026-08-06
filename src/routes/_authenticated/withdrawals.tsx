@@ -576,7 +576,26 @@ function WithdrawalsPage() {
           {editing && (
             <form onSubmit={onEditSubmit} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-2"><Label>اسم الشخص</Label><Input required value={editForm.person_name} onChange={(e) => setEditForm({ ...editForm, person_name: e.target.value })} /></div>
+                <div className="space-y-2"><Label>اسم الشخص</Label>
+                  <Select
+                    value={editPersonMode === "custom" ? "__other__" : editForm.person_name}
+                    onValueChange={(v) => {
+                      if (v === "__other__") { setEditPersonMode("custom"); setEditForm({ ...editForm, person_name: "" }); return; }
+                      const p = PEOPLE.find((x) => x.name === v);
+                      setEditPersonMode("preset");
+                      setEditForm({ ...editForm, person_name: v, person_role: p ? p.role : editForm.person_role });
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="اختر الشخص" /></SelectTrigger>
+                    <SelectContent>
+                      {PEOPLE.map((p) => <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>)}
+                      <SelectItem value="__other__">اسم آخر…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {editPersonMode === "custom" && (
+                    <Input required placeholder="اكتب الاسم" value={editForm.person_name} onChange={(e) => setEditForm({ ...editForm, person_name: e.target.value })} />
+                  )}
+                </div>
                 <div className="space-y-2"><Label>الصفة</Label><Select value={editForm.person_role} onValueChange={(v) => setEditForm({ ...editForm, person_role: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ROLES.map((r) => <SelectItem key={r.v} value={r.v}>{r.l}</SelectItem>)}</SelectContent></Select></div>
                 <div className="space-y-2"><Label>التاريخ</Label><Input required type="date" value={editForm.withdrawal_date} onChange={(e) => setEditForm({ ...editForm, withdrawal_date: e.target.value })} /></div>
                 <div className="space-y-2"><Label>المبلغ (غير قابل للتعديل)</Label><Input value={editForm.amount} readOnly disabled dir="ltr" /></div>
