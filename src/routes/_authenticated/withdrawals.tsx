@@ -34,6 +34,10 @@ const STATUSES = [
   { v: "approved", l: "معتمدة", variant: "default" as const },
   { v: "cancelled", l: "ملغية", variant: "destructive" as const },
 ];
+const PEOPLE: Array<{ name: string; role: string }> = [
+  { name: "يحي", role: "manager" },
+  { name: "الحاج صالح", role: "partner" },
+];
 const roleLabel = (v: string) => ROLES.find((r) => r.v === v)?.l ?? v;
 const methodLabel = (v: string) => METHODS.find((m) => m.v === v)?.l ?? v;
 const statusInfo = (v: string) => STATUSES.find((s) => s.v === v) ?? STATUSES[0];
@@ -54,6 +58,9 @@ function WithdrawalsPage() {
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<any | null>(null);
 
   const [search, setSearch] = useState("");
+  const [fPerson, setFPerson] = useState("all");
+  const [personMode, setPersonMode] = useState<"preset" | "custom">("preset");
+  const [editPersonMode, setEditPersonMode] = useState<"preset" | "custom">("preset");
   const [fRole, setFRole] = useState("all");
   const [fMethod, setFMethod] = useState("all");
   const [fStatus, setFStatus] = useState("all");
@@ -164,6 +171,8 @@ function WithdrawalsPage() {
   });
 
   const filtered = useMemo(() => (data ?? []).filter((w: any) => {
+    if (fPerson === "__other__" && PEOPLE.some((p) => p.name === w.person_name)) return false;
+    if (fPerson !== "all" && fPerson !== "__other__" && w.person_name !== fPerson) return false;
     if (fRole !== "all" && w.person_role !== fRole) return false;
     if (fMethod !== "all" && w.payment_method !== fMethod) return false;
     if (fStatus !== "all" && w.status !== fStatus) return false;
@@ -172,7 +181,7 @@ function WithdrawalsPage() {
     if (fTo && w.withdrawal_date > fTo) return false;
     if (search && !((w.person_name ?? "") + " " + (w.withdrawal_no ?? "") + " " + (w.description ?? "")).includes(search)) return false;
     return true;
-  }), [data, fRole, fMethod, fStatus, fProject, fFrom, fTo, search]);
+  }), [data, fPerson, fRole, fMethod, fStatus, fProject, fFrom, fTo, search]);
 
   // Stats
   const today = new Date().toISOString().slice(0, 10);
@@ -182,8 +191,9 @@ function WithdrawalsPage() {
   const totalMonth = approved.filter((w: any) => w.withdrawal_date >= monthStart).reduce((s: number, w: any) => s + Number(w.amount), 0);
   const totalAll = approved.reduce((s: number, w: any) => s + Number(w.amount), 0);
 
-  function openNew() { setForm(empty); setAllocations([]); setFile(null); setOpen(true); }
+  function openNew() { setForm(empty); setPersonMode("preset"); setAllocations([]); setFile(null); setOpen(true); }
   function openEdit(w: any) {
+    setEditPersonMode(PEOPLE.some((p) => p.name === w.person_name) ? "preset" : "custom");
     setEditForm({
       withdrawal_date: w.withdrawal_date,
       person_name: w.person_name,
@@ -247,6 +257,7 @@ function WithdrawalsPage() {
         toast.error("رصيد الصك غير كافٍ");
         return;
       }
+      if (!form.person_name.trim()) { toast.error("يجب اختيار اسم الشخص"); return; }
       let attachment_url: string | null = null;
       if (file) {
         const path = `withdrawals/${user!.id}/${Date.now()}-${file.name}`;
@@ -332,7 +343,24 @@ function WithdrawalsPage() {
                     <Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" />
                   </div>
                   <div className="space-y-2"><Label>اسم الشخص *</Label>
-                    <Input required value={form.person_name} onChange={(e) => setForm({ ...form, person_name: e.target.value })} />
+                    <Select
+                      value={personMode === "custom" ? "__other__" : form.person_name}
+                      onValueChange={(v) => {
+                        if (v === "__other__") { setPersonMode("custom"); setForm({ ...form, person_name: "" }); return; }
+                        const p = PEOPLE.find((x) => x.name === v);
+                        setPersonMode("preset");
+                        setForm({ ...form, person_name: v, person_role: p ? p.role : form.person_role });
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="اختر الشخص" /></SelectTrigger>
+                      <SelectContent>
+                        {PEOPLE.map((p) => <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>)}
+                        <SelectItem value="__other__">اسم آخر…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {personMode === "custom" && (
+                      <Input required placeholder="اكتب الاسم" value={form.person_name} onChange={(e) => setForm({ ...form, person_name: e.target.value })} />
+                    )}
                   </div>
                   <div className="space-y-2"><Label>الصفة *</Label>
                     <Select value={form.person_role} onValueChange={(v) => setForm({ ...form, person_role: v })}>
@@ -487,6 +515,14 @@ function WithdrawalsPage() {
             </div>
             <Input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} placeholder="من" />
             <Input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} placeholder="إلى" />
+            <Select value={fPerson} onValueChange={setFPerson}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل الأشخاص</SelectItem>
+                {PEOPLE.map((p) => <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>)}
+                <SelectItem value="__other__">أخرى</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={fRole} onValueChange={setFRole}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -576,7 +612,26 @@ function WithdrawalsPage() {
           {editing && (
             <form onSubmit={onEditSubmit} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-2"><Label>اسم الشخص</Label><Input required value={editForm.person_name} onChange={(e) => setEditForm({ ...editForm, person_name: e.target.value })} /></div>
+                <div className="space-y-2"><Label>اسم الشخص</Label>
+                  <Select
+                    value={editPersonMode === "custom" ? "__other__" : editForm.person_name}
+                    onValueChange={(v) => {
+                      if (v === "__other__") { setEditPersonMode("custom"); setEditForm({ ...editForm, person_name: "" }); return; }
+                      const p = PEOPLE.find((x) => x.name === v);
+                      setEditPersonMode("preset");
+                      setEditForm({ ...editForm, person_name: v, person_role: p ? p.role : editForm.person_role });
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="اختر الشخص" /></SelectTrigger>
+                    <SelectContent>
+                      {PEOPLE.map((p) => <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>)}
+                      <SelectItem value="__other__">اسم آخر…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {editPersonMode === "custom" && (
+                    <Input required placeholder="اكتب الاسم" value={editForm.person_name} onChange={(e) => setEditForm({ ...editForm, person_name: e.target.value })} />
+                  )}
+                </div>
                 <div className="space-y-2"><Label>الصفة</Label><Select value={editForm.person_role} onValueChange={(v) => setEditForm({ ...editForm, person_role: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ROLES.map((r) => <SelectItem key={r.v} value={r.v}>{r.l}</SelectItem>)}</SelectContent></Select></div>
                 <div className="space-y-2"><Label>التاريخ</Label><Input required type="date" value={editForm.withdrawal_date} onChange={(e) => setEditForm({ ...editForm, withdrawal_date: e.target.value })} /></div>
                 <div className="space-y-2"><Label>المبلغ (غير قابل للتعديل)</Label><Input value={editForm.amount} readOnly disabled dir="ltr" /></div>
