@@ -332,7 +332,24 @@ function WithdrawalsPage() {
                     <Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} dir="ltr" />
                   </div>
                   <div className="space-y-2"><Label>اسم الشخص *</Label>
-                    <Input required value={form.person_name} onChange={(e) => setForm({ ...form, person_name: e.target.value })} />
+                    <Select
+                      value={personMode === "custom" ? "__other__" : form.person_name}
+                      onValueChange={(v) => {
+                        if (v === "__other__") { setPersonMode("custom"); setForm({ ...form, person_name: "" }); return; }
+                        const p = PEOPLE.find((x) => x.name === v);
+                        setPersonMode("preset");
+                        setForm({ ...form, person_name: v, person_role: p ? p.role : form.person_role });
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="اختر الشخص" /></SelectTrigger>
+                      <SelectContent>
+                        {PEOPLE.map((p) => <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>)}
+                        <SelectItem value="__other__">اسم آخر…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {personMode === "custom" && (
+                      <Input required placeholder="اكتب الاسم" value={form.person_name} onChange={(e) => setForm({ ...form, person_name: e.target.value })} />
+                    )}
                   </div>
                   <div className="space-y-2"><Label>الصفة *</Label>
                     <Select value={form.person_role} onValueChange={(v) => setForm({ ...form, person_role: v })}>
