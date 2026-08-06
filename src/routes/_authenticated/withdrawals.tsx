@@ -34,6 +34,10 @@ const STATUSES = [
   { v: "approved", l: "معتمدة", variant: "default" as const },
   { v: "cancelled", l: "ملغية", variant: "destructive" as const },
 ];
+const PEOPLE: Array<{ name: string; role: string }> = [
+  { name: "يحي", role: "manager" },
+  { name: "الحاج صالح", role: "partner" },
+];
 const roleLabel = (v: string) => ROLES.find((r) => r.v === v)?.l ?? v;
 const methodLabel = (v: string) => METHODS.find((m) => m.v === v)?.l ?? v;
 const statusInfo = (v: string) => STATUSES.find((s) => s.v === v) ?? STATUSES[0];
