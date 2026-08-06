@@ -164,6 +164,8 @@ function WithdrawalsPage() {
   });
 
   const filtered = useMemo(() => (data ?? []).filter((w: any) => {
+    if (fPerson === "__other__" && PEOPLE.some((p) => p.name === w.person_name)) return false;
+    if (fPerson !== "all" && fPerson !== "__other__" && w.person_name !== fPerson) return false;
     if (fRole !== "all" && w.person_role !== fRole) return false;
     if (fMethod !== "all" && w.payment_method !== fMethod) return false;
     if (fStatus !== "all" && w.status !== fStatus) return false;
@@ -172,7 +174,7 @@ function WithdrawalsPage() {
     if (fTo && w.withdrawal_date > fTo) return false;
     if (search && !((w.person_name ?? "") + " " + (w.withdrawal_no ?? "") + " " + (w.description ?? "")).includes(search)) return false;
     return true;
-  }), [data, fRole, fMethod, fStatus, fProject, fFrom, fTo, search]);
+  }), [data, fPerson, fRole, fMethod, fStatus, fProject, fFrom, fTo, search]);
 
   // Stats
   const today = new Date().toISOString().slice(0, 10);
